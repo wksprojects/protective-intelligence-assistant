@@ -247,6 +247,10 @@ def rescore_all_alerts(conn, frequency_snapshot=None):
         keyword_ids = list({alert["keyword_id"] for alert in alerts})
         frequency_snapshot = build_frequency_snapshot(conn, keyword_ids=keyword_ids)
 
+    # Import locally to avoid circular module initialization:
+    # ep_scoring -> risk_scoring (score_to_severity) and this path needs ep_scoring.
+    from analytics.ep_scoring import compute_operational_score
+
     count = 0
     for alert in alerts:
         score_args = frequency_snapshot.get(alert["keyword_id"])
@@ -260,6 +264,7 @@ def rescore_all_alerts(conn, frequency_snapshot=None):
             frequency_override=score_args[0] if score_args else None,
             z_score_override=score_args[1] if score_args else None,
         )
+        compute_operational_score(conn, alert["id"])
         count += 1
     conn.commit()
     return count

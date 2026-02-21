@@ -1,5 +1,6 @@
 """Operational risk scoring for Protective Intelligence workflows."""
 
+import re
 from math import asin, cos, radians, sin, sqrt
 
 from analytics.risk_scoring import score_to_severity
@@ -16,6 +17,13 @@ EP_CATEGORY_BOOST = {
     "threat_actor": 2.5,
     "malware": 2.5,
     "vulnerability": 2.5,
+}
+
+STATE_DEPT_SOURCE_NAME = "State Dept Travel Alerts/Warnings"
+STATE_DEPT_LEVEL_CAP = {
+    1: 35.0,  # Exercise normal precautions -> low
+    2: 60.0,  # Exercise increased caution -> medium
+    3: 80.0,  # Reconsider travel -> high
 }
 
 
@@ -96,14 +104,40 @@ def _compute_poi_factor(conn, alert_id):
     return min(12.0, 6.0 + (count * 2.0))
 
 
+def _extract_travel_advisory_level(title):
+    if not title:
+        return None
+    match = re.search(r"\blevel\s*([1-4])\b", str(title), flags=re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
+def _apply_state_dept_level_cap(source_name, title, score):
+    if source_name != STATE_DEPT_SOURCE_NAME:
+        return score, None
+    level = _extract_travel_advisory_level(title)
+    if level is None:
+        return score, None
+    cap = STATE_DEPT_LEVEL_CAP.get(level)
+    if cap is None:
+        return score, level
+    return min(score, cap), level
+
+
 def compute_operational_score(conn, alert_id):
     """Compute ORS for an alert and persist factor breakdown to alert_scores."""
     row = conn.execute(
-        """SELECT a.id, a.keyword_id,
+        """SELECT a.id, a.keyword_id, a.title,
+                  src.name AS source_name,
                   k.category,
                   s.keyword_weight, s.source_credibility,
                   s.frequency_factor, s.recency_factor
         FROM alerts a
+        LEFT JOIN sources src ON src.id = a.source_id
         JOIN alert_scores s ON s.alert_id = a.id
         JOIN keywords k ON k.id = a.keyword_id
         WHERE a.id = ?
@@ -128,6 +162,9 @@ def compute_operational_score(conn, alert_id):
     ) + (float(row["recency_factor"] or 0.1) * 10.0)
 
     ors_score = max(0.0, min(100.0, base_score + category_factor + proximity_factor + event_factor + poi_factor))
+    ors_score, advisory_level = _apply_state_dept_level_cap(
+        row["source_name"], row["title"], ors_score
+    )
     ors_score = round(ors_score, 3)
 
     conn.execute(
@@ -157,6 +194,7 @@ def compute_operational_score(conn, alert_id):
         "proximity_factor": proximity_factor,
         "event_factor": event_factor,
         "poi_factor": poi_factor,
+        "advisory_level": advisory_level,
     }
 
 

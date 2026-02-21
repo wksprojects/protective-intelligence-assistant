@@ -1,7 +1,0 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='960' height='540'>
-<rect width='960' height='540' fill='#111827'/>
-<text x='32' y='56' fill='#f9fafb' font-size='32' font-family='Arial'>Map View (Demo)</text>
-<circle cx='240' cy='240' r='22' fill='#10b981'/><text x='280' y='247' fill='#e5e7eb' font-size='18'>Acme HQ</text>
-<circle cx='520' cy='300' r='16' fill='#f97316'/><text x='560' y='307' fill='#e5e7eb' font-size='18'>Protest Alert</text>
-<circle cx='680' cy='180' r='16' fill='#ef4444'/><text x='720' y='187' fill='#e5e7eb' font-size='18'>Threat Alert</text>
-</svg>

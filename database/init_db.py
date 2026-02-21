@@ -897,8 +897,23 @@ def seed_default_pois():
         pois = watchlist["pois"]
         seed_origin = f"config ({watchlist['path']})"
     else:
-        pois = []
-        seed_origin = "none"
+        pois = [
+            {
+                "name": "Jane Doe",
+                "org": "Acme Corporation",
+                "role": "Chief Executive Officer",
+                "sensitivity": 5,
+                "aliases": ["Jane Doe", "J. Doe"],
+            },
+            {
+                "name": "Michael Reyes",
+                "org": "Acme Corporation",
+                "role": "Chief Security Officer",
+                "sensitivity": 4,
+                "aliases": ["Michael Reyes", "Mike Reyes"],
+            },
+        ]
+        seed_origin = "hardcoded defaults"
 
     for poi in pois:
         existing = conn.execute("SELECT id FROM pois WHERE name = ?", (poi["name"],)).fetchone()
@@ -938,7 +953,24 @@ def seed_default_protected_locations():
         locations = watchlist["protected_locations"]
         seed_origin = f"config ({watchlist['path']})"
     else:
-        locations = []
+        locations = [
+            {
+                "name": "Acme HQ",
+                "type": "hq",
+                "lat": 37.7749,
+                "lon": -122.4194,
+                "radius_miles": 10,
+                "notes": "Primary headquarters",
+            },
+            {
+                "name": "Acme NYC Office",
+                "type": "office",
+                "lat": 40.7128,
+                "lon": -74.0060,
+                "radius_miles": 8,
+                "notes": "Regional office",
+            },
+        ]
         seed_origin = "hardcoded defaults"
 
     for location in locations:
@@ -987,7 +1019,21 @@ def seed_default_events():
         events = watchlist["events"]
         seed_origin = f"config ({watchlist['path']})"
     else:
-        events = []
+        events = [
+            {
+                "name": "Executive Town Hall",
+                "type": "corporate_event",
+                "start_dt": "2026-03-15 17:00:00",
+                "end_dt": "2026-03-15 20:00:00",
+                "city": "San Francisco",
+                "country": "US",
+                "venue": "Acme HQ",
+                "lat": 37.7749,
+                "lon": -122.4194,
+                "poi_name": "Jane Doe",
+                "notes": "Leadership all-hands",
+            }
+        ]
         seed_origin = "hardcoded defaults"
 
     for event in events:
