@@ -39,6 +39,7 @@ smoke: ## Quick smoke test (init → demo → compile check)
 
 clean: ## Remove database and cached artifacts
 	rm -f database/protective_intel.db
+	rm -f database/osint_monitor.db
 	rm -f docs/demo_daily_report.md docs/demo_travel_brief.md
 	rm -f docs/protectee_view.svg docs/map_view.svg
 	@echo "Cleaned database and demo artifacts."

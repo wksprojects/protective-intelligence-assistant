@@ -5,7 +5,9 @@ from urllib.parse import quote_plus, urlencode
 
 import yaml
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "protective_intel.db")
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(__file__), "protective_intel.db")
+LEGACY_DB_PATH = os.path.join(os.path.dirname(__file__), "osint_monitor.db")
+DB_PATH = DEFAULT_DB_PATH
 WATCHLIST_CONFIG_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "config", "watchlist.yaml")
 )
@@ -44,8 +46,9 @@ KEYWORD_DEFAULT_WEIGHTS_BY_CATEGORY = {
 
 
 def get_connection():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    db_path = _resolve_db_path()
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
@@ -58,7 +61,18 @@ def init_db():
         conn.executescript(f.read())
     conn.commit()
     conn.close()
-    print(f"Database initialized at {DB_PATH}")
+    print(f"Database initialized at {_resolve_db_path()}")
+
+
+def _resolve_db_path():
+    # Respect explicit overrides (e.g., tests monkeypatching DB_PATH).
+    if DB_PATH != DEFAULT_DB_PATH:
+        return DB_PATH
+    if os.path.exists(DEFAULT_DB_PATH):
+        return DEFAULT_DB_PATH
+    if os.path.exists(LEGACY_DB_PATH):
+        return LEGACY_DB_PATH
+    return DEFAULT_DB_PATH
 
 
 def _get_table_columns(conn, table_name):

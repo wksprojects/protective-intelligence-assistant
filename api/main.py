@@ -23,16 +23,21 @@ from database.init_db import (
 )
 
 # --- API Key Authentication ---
-# Set PI_API_KEY env var to enable auth on mutation endpoints.
-# When unset, auth is disabled (local-only development mode).
-_API_KEY = os.getenv("PI_API_KEY", "")
+# Set PI_API_KEY (preferred) or OSINT_API_KEY (legacy) to enable auth.
+# When neither is set, auth is disabled (local-only development mode).
+def _resolve_api_key():
+    return os.getenv("PI_API_KEY") or os.getenv("OSINT_API_KEY", "")
+
+
+_API_KEY = _resolve_api_key()
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)):
     """Verify the API key for mutation endpoints.
 
-    When PI_API_KEY is not set, auth is bypassed (development mode).
+    Reads PI_API_KEY first, then OSINT_API_KEY for backward compatibility.
+    When neither is set, auth is bypassed (development mode).
     When set, all mutation endpoints require a matching X-API-Key header.
     """
     if not _API_KEY:
