@@ -82,6 +82,32 @@ st.markdown(
             radial-gradient(circle at 8% 8%, #e7eef7 0%, rgba(231, 238, 247, 0) 35%),
             radial-gradient(circle at 92% 0%, #edf6f2 0%, rgba(237, 246, 242, 0) 30%),
             var(--bg);
+        color: var(--ink);
+    }
+    .stApp p,
+    .stApp span,
+    .stApp label,
+    .stApp div,
+    .stApp h1,
+    .stApp h2,
+    .stApp h3,
+    .stApp h4 {
+        color: var(--ink) !important;
+    }
+    .stApp a {
+        color: var(--accent) !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: var(--ink) !important;
+    }
+    .stDataFrame * {
+        color: var(--ink) !important;
+    }
+    .stTextInput input,
+    .stTextArea textarea,
+    .stSelectbox [data-baseweb="select"],
+    .stSlider {
+        color: var(--ink) !important;
     }
     .ops-header {
         background: var(--panel);
