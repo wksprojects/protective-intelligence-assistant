@@ -92,6 +92,7 @@ class TravelBriefRequest(BaseModel):
     end_dt: str
     poi_id: Optional[int] = None
     protected_location_id: Optional[int] = None
+    include_demo: int = 0
 
 
 class DispositionRequest(BaseModel):
@@ -631,11 +632,17 @@ def get_graph(
     days: int = Query(default=7, ge=1, le=30),
     min_score: float = Query(default=70.0, ge=0.0, le=100.0),
     limit_alerts: int = Query(default=500, ge=10, le=2000),
+    include_demo: int = Query(default=0, ge=0, le=1),
 ):
     """Build a compact link-analysis graph across sources, keywords, entities, and IOCs."""
     from analytics.graph import build_graph
 
-    return build_graph(days=days, min_score=min_score, limit_alerts=limit_alerts)
+    return build_graph(
+        days=days,
+        min_score=min_score,
+        limit_alerts=limit_alerts,
+        include_demo=bool(include_demo),
+    )
 
 
 # --- PROTECTIVE INTEL ---
@@ -838,21 +845,30 @@ def create_protected_location(body: ProtectedLocationCreate):
 
 
 @app.get("/analytics/map", dependencies=[Depends(verify_api_key)])
-def get_map_points(days: int = Query(default=7, ge=1, le=30), min_ors: float = Query(default=60.0)):
+def get_map_points(
+    days: int = Query(default=7, ge=1, le=30),
+    min_ors: float = Query(default=60.0),
+    include_demo: int = Query(default=0, ge=0, le=1),
+):
     conn = get_connection()
     protected = conn.execute(
         """SELECT id, name, type, lat, lon, radius_miles
         FROM protected_locations
         WHERE active = 1 AND lat IS NOT NULL AND lon IS NOT NULL"""
     ).fetchall()
+    demo_filter = ""
+    if not include_demo:
+        demo_filter = " AND COALESCE(s.source_type, '') != 'demo'"
     alerts = conn.execute(
-        """SELECT a.id, a.title, a.ors_score, a.tas_score, a.severity,
+        f"""SELECT a.id, a.title, a.ors_score, a.tas_score, a.severity,
                   al.location_text, al.lat, al.lon
         FROM alerts a
+        LEFT JOIN sources s ON s.id = a.source_id
         JOIN alert_locations al ON al.alert_id = a.id
         WHERE datetime(COALESCE(a.published_at, a.created_at)) >= datetime('now', ?)
           AND COALESCE(a.ors_score, a.risk_score) >= ?
           AND al.lat IS NOT NULL AND al.lon IS NOT NULL
+          {demo_filter}
         ORDER BY COALESCE(a.ors_score, a.risk_score) DESC""",
         (f"-{int(days)} days", float(min_ors)),
     ).fetchall()
@@ -873,6 +889,7 @@ def create_travel_brief(body: TravelBriefRequest):
         end_dt=body.end_dt,
         poi_id=body.poi_id,
         protected_location_id=body.protected_location_id,
+        include_demo=bool(body.include_demo),
         persist=True,
     )
 
@@ -971,9 +988,14 @@ def update_keyword_weight(keyword_id: int, weight: float = Query(ge=0.1, le=5.0)
 
 
 @app.get("/sources", dependencies=[Depends(verify_api_key)])
-def get_sources():
+def get_sources(include_demo: int = Query(default=0, ge=0, le=1)):
     conn = get_connection()
-    sources = conn.execute("SELECT * FROM sources ORDER BY source_type, name").fetchall()
+    query = "SELECT * FROM sources"
+    params: list = []
+    if not include_demo:
+        query += " WHERE COALESCE(source_type, '') != 'demo'"
+    query += " ORDER BY source_type, name"
+    sources = conn.execute(query, params).fetchall()
     conn.close()
     return [dict(s) for s in sources]
 

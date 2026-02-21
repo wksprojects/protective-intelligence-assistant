@@ -27,6 +27,7 @@ def generate_travel_brief(
     end_dt,
     poi_id=None,
     protected_location_id=None,
+    include_demo=False,
     persist=True,
 ):
     conn = get_connection()
@@ -37,8 +38,12 @@ def generate_travel_brief(
         coords = geocode_query(conn, destination)
         internal = []
 
+        demo_filter = ""
+        if not include_demo:
+            demo_filter = " AND COALESCE(s.source_type, '') != 'demo'"
+
         alerts = conn.execute(
-            """SELECT a.id, a.title, a.content, a.ors_score, a.tas_score,
+            f"""SELECT a.id, a.title, a.content, a.ors_score, a.tas_score,
                       COALESCE(a.published_at, a.created_at) AS ts,
                       s.name AS source_name,
                       al.location_text, al.lat, al.lon
@@ -47,7 +52,8 @@ def generate_travel_brief(
             LEFT JOIN alert_locations al ON al.alert_id = a.id
             WHERE datetime(COALESCE(a.published_at, a.created_at)) >= datetime(?)
               AND datetime(COALESCE(a.published_at, a.created_at)) <= datetime(?)
-              AND a.duplicate_of IS NULL""",
+              AND a.duplicate_of IS NULL
+              {demo_filter}""",
             (start_value, end_value),
         ).fetchall()
 
@@ -76,7 +82,7 @@ def generate_travel_brief(
         internal.sort(key=lambda x: (x["ors"], x["tas"]), reverse=True)
 
         travel_feed_rows = conn.execute(
-            """SELECT a.title, COALESCE(a.published_at, a.created_at) AS ts, s.name AS source_name
+            f"""SELECT a.title, COALESCE(a.published_at, a.created_at) AS ts, s.name AS source_name
             FROM alerts a
             JOIN sources s ON s.id = a.source_id
             WHERE s.name IN (
@@ -85,17 +91,19 @@ def generate_travel_brief(
                 'WHO Disease Outbreak News'
             )
               AND (LOWER(a.title) LIKE ? OR LOWER(COALESCE(a.content, '')) LIKE ?)
+              {demo_filter}
             ORDER BY COALESCE(a.published_at, a.created_at) DESC
             LIMIT 20""",
             (f"%{destination.lower()}%", f"%{destination.lower()}%"),
         ).fetchall()
 
         gdelt_rows = conn.execute(
-            """SELECT a.title, COALESCE(a.published_at, a.created_at) AS ts
+            f"""SELECT a.title, COALESCE(a.published_at, a.created_at) AS ts
             FROM alerts a
             JOIN sources s ON s.id = a.source_id
             WHERE s.name LIKE 'GDELT%'
               AND (LOWER(a.title) LIKE ? OR LOWER(COALESCE(a.content, '')) LIKE ?)
+              {demo_filter}
             ORDER BY COALESCE(a.published_at, a.created_at) DESC
             LIMIT 20""",
             (f"%{destination.lower()}%", f"%{destination.lower()}%"),

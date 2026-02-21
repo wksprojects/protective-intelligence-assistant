@@ -1,10 +1,12 @@
 import json
 import os
+import html
 from datetime import date, datetime
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import requests
 import streamlit as st
 
@@ -42,217 +44,402 @@ def _patch(path, payload=None, timeout=20):
     return r.json()
 
 
-def _style(fig, height=None):
-    fig.update_layout(
-        template="plotly_white",
-        margin=dict(l=24, r=20, t=40, b=24),
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        font=dict(family="Inter, system-ui, sans-serif"),
+# ---------------------------------------------------------------------------
+# Cached API wrappers
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_summary():
+    return _get("/alerts/summary", params={"include_demo": 0})
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_pois():
+    return _get("/pois")
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_threat_subjects():
+    return _get("/threat-subjects")
+
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_alerts(severity="All", status="All", min_score=0, limit=100):
+    params = {"limit": limit, "sort_by": "risk_score", "include_demo": 0}
+    if severity != "All":
+        params["severity"] = severity
+    if status == "Unreviewed":
+        params["reviewed"] = 0
+    elif status == "Reviewed":
+        params["reviewed"] = 1
+    if min_score > 0:
+        params["min_score"] = min_score
+    return _get("/alerts", params=params)
+
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_daily_report(date_str):
+    return _get("/intelligence/daily", params={"date": date_str, "include_demo": 0})
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_map_data(days=7, min_ors=0):
+    return _get("/analytics/map", params={"days": days, "min_ors": min_ors, "include_demo": 0})
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_graph_data(days=7, min_score=40, limit=200):
+    return _get(
+        "/analytics/graph",
+        params={"days": days, "min_score": min_score, "limit_alerts": limit, "include_demo": 0},
     )
+
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_spikes(threshold=1.5):
+    return _get("/analytics/spikes", params={"threshold": threshold})
+
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_poi_assessment(poi_id, window_days=14):
+    return _get(f"/pois/{poi_id}/assessment", params={"window_days": window_days})
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_escalation_tiers():
+    return _get("/analytics/escalation-tiers")
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_locations():
+    return _get("/locations/protected")
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_keywords():
+    return _get("/keywords")
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_sources():
+    return _get("/sources", params={"include_demo": 0})
+
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_sitreps(status=None, limit=20):
+    params = {"limit": limit}
+    if status and status != "All":
+        params["status"] = status
+    return _get("/sitreps", params=params)
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_poi_hits(poi_id, days=14):
+    return _get(f"/pois/{poi_id}/hits", params={"days": days})
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_subject_detail(subject_id):
+    return _get(f"/threat-subjects/{subject_id}")
+
+
+# ---------------------------------------------------------------------------
+# Plotly dark template
+# ---------------------------------------------------------------------------
+PI_TEMPLATE = go.layout.Template(
+    layout=dict(
+        paper_bgcolor="#111827",
+        plot_bgcolor="#111827",
+        font=dict(family="Inter, system-ui, sans-serif", color="#94a3b8", size=12),
+        title=dict(font=dict(color="#e2e8f0", size=14)),
+        xaxis=dict(gridcolor="#1e293b", zerolinecolor="#1e293b", tickfont=dict(color="#94a3b8")),
+        yaxis=dict(gridcolor="#1e293b", zerolinecolor="#1e293b", tickfont=dict(color="#94a3b8")),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#94a3b8"), bordercolor="#1e3a5f"),
+        margin=dict(l=40, r=20, t=48, b=32),
+        colorway=["#3b82f6", "#06b6d4", "#8b5cf6", "#f97316", "#ec4899", "#22c55e"],
+    )
+)
+pio.templates["pi_dark"] = PI_TEMPLATE
+pio.templates.default = "pi_dark"
+ACTIVE_TEMPLATE_NAME = "pi_dark"
+
+
+def _style(fig, height=None):
+    fig.update_layout(template=ACTIVE_TEMPLATE_NAME)
     if height:
         fig.update_layout(height=height)
     return fig
 
 
 # ---------------------------------------------------------------------------
-# Page config & theme
+# Design tokens
 # ---------------------------------------------------------------------------
-st.set_page_config(page_title="Protective Intelligence Console", page_icon="PI", layout="wide")
+SEVERITY_COLORS = {"critical": "#ef4444", "high": "#f97316", "medium": "#eab308", "low": "#22c55e"}
+TIER_COLORS = {"CRITICAL": "#ef4444", "ELEVATED": "#f97316", "ROUTINE": "#eab308", "LOW": "#22c55e"}
 
-SEVERITY_COLORS = {
-    "critical": "#b42318",
-    "high": "#c2410c",
-    "medium": "#b08900",
-    "low": "#1d7a46",
+SEV_CSS = {
+    "critical": "background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)",
+    "high": "background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3)",
+    "medium": "background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.3)",
+    "low": "background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.3)",
 }
-SEVERITY_LABELS = {
-    "critical": "CRITICAL",
-    "high": "HIGH",
-    "medium": "MEDIUM",
-    "low": "LOW",
+TIER_CSS = {
+    "CRITICAL": SEV_CSS["critical"],
+    "ELEVATED": SEV_CSS["high"],
+    "ROUTINE": SEV_CSS["medium"],
+    "LOW": SEV_CSS["low"],
 }
-TIER_COLORS = {
-    "CRITICAL": "#b42318",
-    "ELEVATED": "#c2410c",
-    "ROUTINE": "#b08900",
-    "LOW": "#1d7a46",
-}
+
+
+def _badge(label, css_style):
+    return (
+        f'<span style="display:inline-block;padding:2px 10px;border-radius:4px;'
+        f'font-weight:700;font-size:0.72rem;letter-spacing:0.04em;{css_style}">'
+        f'{html.escape(str(label), quote=True)}</span>'
+    )
+
+
+def _sev_badge(sev):
+    return _badge(sev.upper(), SEV_CSS.get(sev, SEV_CSS["low"]))
+
+
+def _tier_badge(tier):
+    return _badge(tier, TIER_CSS.get(tier, TIER_CSS["LOW"]))
+
+
+def _empty(msg, icon="\u2014"):
+    st.markdown(
+        f'<div style="text-align:center;padding:32px 20px;color:#64748b;font-size:0.88rem;'
+        f'border:1px dashed #1e3a5f;border-radius:8px;background:rgba(17,24,39,0.5);">'
+        f'<div style="font-size:1.4rem;margin-bottom:6px;opacity:0.4;">{icon}</div>'
+        f'{msg}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _esc(value):
+    return html.escape(str(value), quote=True)
+
+
+def _safe_id_set(value):
+    if value is None:
+        return set()
+    items = value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return set()
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            parsed = [part.strip() for part in text.split(",") if part.strip()]
+        items = parsed if isinstance(parsed, list) else [parsed]
+    elif not isinstance(value, list):
+        items = [value]
+
+    ids = set()
+    for item in items:
+        try:
+            ids.add(int(item))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+# ---------------------------------------------------------------------------
+# Page config & CSS
+# ---------------------------------------------------------------------------
+st.set_page_config(page_title="Protective Intelligence Console", page_icon="\U0001F6E1\uFE0F", layout="wide")
+
+theme_base = (st.get_option("theme.base") or "dark").lower()
+if theme_base == "light":
+    ACTIVE_TEMPLATE_NAME = "pi_light"
+    pio.templates["pi_light"] = go.layout.Template(
+        layout=dict(
+            paper_bgcolor="#f8fafc",
+            plot_bgcolor="#ffffff",
+            font=dict(family="Inter, system-ui, sans-serif", color="#334155", size=12),
+            title=dict(font=dict(color="#0f172a", size=14)),
+            xaxis=dict(gridcolor="#e2e8f0", zerolinecolor="#e2e8f0", tickfont=dict(color="#334155")),
+            yaxis=dict(gridcolor="#e2e8f0", zerolinecolor="#e2e8f0", tickfont=dict(color="#334155")),
+            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#334155"), bordercolor="#cbd5e1"),
+            margin=dict(l=40, r=20, t=48, b=32),
+            colorway=["#2563eb", "#0284c7", "#7c3aed", "#ea580c", "#db2777", "#16a34a"],
+        )
+    )
+    pio.templates.default = "pi_light"
+
+IS_LIGHT_THEME = theme_base == "light"
+UI_TEXT_PRIMARY = "#0f172a" if IS_LIGHT_THEME else "#e2e8f0"
+UI_TEXT_SECONDARY = "#475569" if IS_LIGHT_THEME else "#94a3b8"
+UI_PANEL_BG = "#ffffff" if IS_LIGHT_THEME else "#111827"
+UI_BORDER = "#cbd5e1" if IS_LIGHT_THEME else "#1e3a5f"
+UI_GRID = "#cbd5e1" if IS_LIGHT_THEME else "#1e293b"
+UI_MAP_STYLE = "carto-positron" if IS_LIGHT_THEME else "carto-darkmatter"
+UI_MAP_BG = "#f8fafc" if IS_LIGHT_THEME else "#0b1120"
 
 st.markdown(
     """
 <style>
 :root {
-    --bg: #f3f5f8; --panel: #ffffff; --ink: #0f172a; --muted: #475569;
-    --line: #dbe2ea; --accent: #0f4c81;
+    --bg-deep: #0b1120; --bg-surface: #111827; --bg-elevated: #1e293b;
+    --border: #1e3a5f; --border-subtle: #162032;
+    --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+    --accent: #3b82f6; --accent-dim: #1e40af;
 }
-.stApp {
-    background:
-        radial-gradient(circle at 8% 8%, #e7eef7 0%, transparent 35%),
-        radial-gradient(circle at 92% 0%, #edf6f2 0%, transparent 30%),
-        var(--bg);
-    color: var(--ink);
+.stApp { background: var(--bg-deep); color: var(--text-primary); }
+section[data-testid="stSidebar"] { background: var(--bg-surface); }
+
+/* Metric cards */
+[data-testid="stMetric"] {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px;
 }
-.stApp p, .stApp span, .stApp label, .stApp div,
-.stApp h1, .stApp h2, .stApp h3, .stApp h4 { color: var(--ink) !important; }
-.stApp a { color: var(--accent) !important; }
-.stTabs [data-baseweb="tab"] { color: var(--ink) !important; }
-.stDataFrame * { color: var(--ink) !important; }
-.stTextInput input, .stTextArea textarea,
-.stSelectbox [data-baseweb="select"], .stSlider { color: var(--ink) !important; }
+[data-testid="stMetricValue"] { font-size: 1.7rem !important; font-weight: 700 !important; color: var(--text-primary) !important; }
+[data-testid="stMetricLabel"] { font-size: 0.72rem !important; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary) !important; }
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0; background: var(--bg-surface); border-radius: 8px; padding: 4px; border: 1px solid var(--border);
+}
+.stTabs [data-baseweb="tab"] {
+    flex-grow: 1; justify-content: center; border-radius: 6px; color: var(--text-secondary) !important;
+    font-weight: 600; font-size: 0.82rem; letter-spacing: 0.02em; white-space: nowrap;
+}
+.stTabs [aria-selected="true"] { background: var(--bg-elevated) !important; color: var(--text-primary) !important; }
+
+/* Dataframes */
+[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+
+/* Expanders */
+[data-testid="stExpander"] { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; }
+
+/* Header bar */
 .ops-header {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 14px; padding: 18px 22px; margin-bottom: 14px;
+    background: linear-gradient(135deg, #111827 0%, #0f172a 100%);
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px 24px; margin-bottom: 10px;
 }
-.ops-kicker {
-    color: var(--accent); font-size: 0.76rem; letter-spacing: 0.08em;
-    text-transform: uppercase; font-weight: 600; margin-bottom: 6px;
+.ops-kicker { color: #3b82f6; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; margin-bottom: 2px; }
+.ops-title { color: #e2e8f0; font-size: 1.35rem; font-weight: 700; margin: 0; }
+.ops-subtitle { color: #94a3b8; font-size: 0.82rem; margin-top: 2px; margin-bottom: 0; }
+
+/* Escalation card */
+.esc-card {
+    padding: 10px 14px; border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem;
 }
-.ops-title { color: var(--ink); font-size: 1.5rem; font-weight: 700; margin: 0; }
-.ops-subtitle { color: var(--muted); margin-top: 6px; margin-bottom: 0; }
-.tier-badge {
-    display: inline-block; padding: 3px 10px; border-radius: 4px;
-    font-weight: 700; font-size: 0.8rem; letter-spacing: 0.04em; color: white;
-}
-.tier-critical { background: #b42318; }
-.tier-elevated { background: #c2410c; }
-.tier-routine { background: #b08900; }
-.tier-low { background: #1d7a46; }
+.esc-immediate { background: rgba(239,68,68,0.12); border-left: 3px solid #ef4444; color: #fca5a5; }
+.esc-high { background: rgba(249,115,22,0.12); border-left: 3px solid #f97316; color: #fdba74; }
+.esc-medium { background: rgba(59,130,246,0.10); border-left: 3px solid #3b82f6; color: #93c5fd; }
+
+/* Forms */
+.stForm { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+
+/* Hide Streamlit branding */
+#MainMenu {visibility: hidden;} footer {visibility: hidden;}
+header[data-testid="stHeader"] { background: var(--bg-deep); }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
+if theme_base == "light":
+    st.markdown(
+        """
+<style>
+:root {
+    --bg-deep: #f8fafc; --bg-surface: #ffffff; --bg-elevated: #e2e8f0;
+    --border: #cbd5e1; --border-subtle: #e2e8f0;
+    --text-primary: #0f172a; --text-secondary: #334155; --text-muted: #64748b;
+    --accent: #2563eb; --accent-dim: #1d4ed8;
+}
+.ops-header { background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%); }
+.ops-title { color: #0f172a; }
+.ops-subtitle { color: #475569; }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+# Header
 st.markdown(
     """
 <section class="ops-header">
   <div class="ops-kicker">Operations Console</div>
   <h1 class="ops-title">Protective Intelligence & Executive Protection</h1>
-  <p class="ops-subtitle">Threat assessment, protectee monitoring, travel security, and escalation management.</p>
+  <p class="ops-subtitle">Threat assessment \u2022 Protectee monitoring \u2022 Travel security \u2022 Escalation management</p>
 </section>
 """,
     unsafe_allow_html=True,
 )
 
-# --- API health check ---
+# API health check
 try:
     requests.get(f"{API_URL}/", headers=_hdrs(), timeout=3).raise_for_status()
 except requests.RequestException:
-    st.error("Cannot connect to API. Start the API server on port 8000.")
+    st.error("\u26A0\uFE0F Cannot connect to API. Start the server: `make api`")
     st.stop()
 
-# --- Tab layout ---
+
+# ---------------------------------------------------------------------------
+# TAB LAYOUT (5 tabs)
+# ---------------------------------------------------------------------------
 tabs = st.tabs([
-    "Command Center",
-    "Protectees",
-    "Threat Subjects",
-    "Daily Briefing",
-    "Alert Queue",
-    "Travel Security",
-    "SITREPs",
-    "Analytics",
-    "Configuration",
+    "Situation Overview",
+    "Alert Triage",
+    "Protectee Risk",
+    "Intelligence Analysis",
+    "Administration",
 ])
 
 # ============================================================
-# TAB 1: COMMAND CENTER
+# TAB 1: SITUATION OVERVIEW
 # ============================================================
 with tabs[0]:
     try:
-        summary = _get("/alerts/summary", params={"include_demo": 0})
+        summary = fetch_summary()
         st.caption(f"Updated {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
 
-        # KPI Row 1
+        # --- KPI Row ---
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Total Alerts", summary["total_alerts"])
-        k2.metric("Unreviewed", summary["unreviewed"])
-        k3.metric("Critical", summary["by_severity"].get("critical", 0))
-        k4.metric("High", summary["by_severity"].get("high", 0))
+        k1.metric("Unreviewed Alerts", summary.get("unreviewed", 0))
+        k2.metric("Critical", summary.get("by_severity", {}).get("critical", 0))
+        k3.metric("Avg ORS", f"{summary.get('avg_risk_score', 0):.1f}")
+        k4.metric("Active Spikes", summary.get("active_spikes", 0))
 
-        # KPI Row 2
-        k5, k6, k7, k8 = st.columns(4)
-        k5.metric("Avg ORS", f"{summary.get('avg_risk_score', 0):.1f}")
-        k6.metric("Active Spikes", summary.get("active_spikes", 0))
+        # --- Escalation Recommendations + Executive Summary ---
         try:
-            pois_count = len(_get("/pois"))
-            subjects_count = len(_get("/threat-subjects"))
-        except Exception:
-            pois_count = 0
-            subjects_count = 0
-        k7.metric("Active Protectees", pois_count)
-        k8.metric("Threat Subjects", subjects_count)
+            report = fetch_daily_report(date.today().strftime("%Y-%m-%d"))
+        except requests.RequestException:
+            report = {}
 
-        # Escalation Tiers
-        st.markdown("#### Escalation Tiers")
-        try:
-            tiers_data = _get("/analytics/escalation-tiers")
-            tier_list = tiers_data.get("tiers", [])
-            tier_cols = st.columns(len(tier_list)) if tier_list else []
-            for i, tier in enumerate(tier_list):
-                label = tier["label"]
-                css = f"tier-{label.lower()}"
-                window = tier.get("response_window", "N/A")
-                notify = ", ".join(tier.get("notify", [])) or "—"
-                tier_cols[i].markdown(
-                    f'<span class="tier-badge {css}">{label}</span><br>'
-                    f'<small>Score {tier["threshold"]}+ | {window}<br>Notify: {notify}</small>',
+        col_esc, col_exec = st.columns([3, 2])
+
+        with col_esc:
+            st.markdown("##### Escalation Recommendations")
+            escalations = report.get("escalation_recommendations", [])
+            if escalations:
+                for esc in escalations[:6]:
+                    priority = esc.get("priority", "MEDIUM")
+                    css_class = {
+                        "IMMEDIATE": "esc-immediate",
+                        "HIGH": "esc-high",
+                    }.get(priority, "esc-medium")
+                    action = esc.get("action", esc.get("why", ""))
+                    st.markdown(
+                        f'<div class="esc-card {css_class}">'
+                        f'<strong>[{_esc(priority)}]</strong> {_esc(action)}</div>',
+                        unsafe_allow_html=True,
+                    )
+            else:
+                _empty("No escalation items at this time. Run scraper to ingest alerts.")
+
+        with col_exec:
+            st.markdown("##### Executive Summary")
+            exec_summary = report.get("executive_summary", "")
+            if exec_summary:
+                st.markdown(
+                    f'<div style="background:{UI_PANEL_BG};border:1px solid {UI_BORDER};border-radius:8px;'
+                    f'padding:14px 18px;font-size:0.88rem;color:{UI_TEXT_SECONDARY};line-height:1.55;">'
+                    f'{_esc(exec_summary).replace(chr(10), "<br>")}</div>',
                     unsafe_allow_html=True,
                 )
-        except Exception:
-            pass
+            else:
+                _empty("Executive summary will appear after alerts are ingested and scored.")
 
-        st.divider()
+        st.markdown("")
 
-        # Charts row
-        c_left, c_mid, c_right = st.columns(3)
-        with c_left:
-            st.subheader("Severity Distribution")
-            if summary["by_severity"]:
-                sev_df = pd.DataFrame(
-                    list(summary["by_severity"].items()), columns=["Severity", "Count"]
-                )
-                order = ["critical", "high", "medium", "low"]
-                sev_df["Severity"] = pd.Categorical(
-                    sev_df["Severity"], categories=order, ordered=True
-                )
-                sev_df = sev_df.sort_values("Severity")
-                fig = px.bar(
-                    sev_df, x="Severity", y="Count", color="Severity",
-                    color_discrete_map=SEVERITY_COLORS,
-                )
-                fig.update_layout(showlegend=False)
-                _style(fig, 300)
-                st.plotly_chart(fig, use_container_width=True)
-
-        with c_mid:
-            st.subheader("Intelligence Sources")
-            if summary["by_source"]:
-                src_df = pd.DataFrame(
-                    list(summary["by_source"].items()), columns=["Source", "Count"]
-                )
-                fig = px.pie(src_df, values="Count", names="Source", hole=0.4)
-                _style(fig, 300)
-                st.plotly_chart(fig, use_container_width=True)
-
-        with c_right:
-            st.subheader("Top Keywords")
-            if summary["top_keywords"]:
-                kw_df = pd.DataFrame(
-                    list(summary["top_keywords"].items()), columns=["Keyword", "Count"]
-                )
-                kw_df = kw_df.sort_values("Count", ascending=True)
-                fig = px.bar(kw_df, x="Count", y="Keyword", orientation="h")
-                _style(fig, 300)
-                st.plotly_chart(fig, use_container_width=True)
-
-        # Geospatial Map
-        st.subheader("Geospatial Overview")
+        # --- Geospatial Map ---
+        st.markdown("##### Geospatial Common Operating Picture")
         try:
-            map_data = _get("/analytics/map", params={"days": 7, "min_ors": 40})
+            map_data = fetch_map_data(days=14, min_ors=0)
             locs = map_data.get("protected_locations", [])
             alert_pins = map_data.get("alerts", [])
-            valid_locs = [loc for loc in locs if loc.get("lat") and loc.get("lon")]
-            valid_alerts = [a for a in alert_pins if a.get("lat") and a.get("lon")]
+            valid_locs = [loc for loc in locs if loc.get("lat") is not None and loc.get("lon") is not None]
+            valid_alerts = [a for a in alert_pins if a.get("lat") is not None and a.get("lon") is not None]
 
             if valid_locs or valid_alerts:
                 fig = go.Figure()
@@ -261,972 +448,535 @@ with tabs[0]:
                         lat=[loc["lat"] for loc in valid_locs],
                         lon=[loc["lon"] for loc in valid_locs],
                         mode="markers+text",
-                        marker=dict(size=14, color="#0f4c81", symbol="circle"),
-                        text=[loc["name"] for loc in valid_locs],
+                        marker=dict(size=14, color="#3b82f6", symbol="circle"),
+                        text=[_esc(loc["name"]) for loc in valid_locs],
                         textposition="top center",
+                        textfont=dict(color="#e2e8f0", size=10),
                         name="Protected Sites",
                     ))
                 if valid_alerts:
-                    colors = [
-                        SEVERITY_COLORS.get(a.get("severity", "low"), "#64748b")
-                        for a in valid_alerts
-                    ]
+                    colors = [SEVERITY_COLORS.get(a.get("severity", "low"), "#64748b") for a in valid_alerts]
+                    sizes = [max(7, min(18, (a.get("ors_score") or 0) / 6)) for a in valid_alerts]
                     fig.add_trace(go.Scattermapbox(
                         lat=[a["lat"] for a in valid_alerts],
                         lon=[a["lon"] for a in valid_alerts],
                         mode="markers",
-                        marker=dict(size=9, color=colors),
-                        text=[
-                            f"{a['title'][:60]} (ORS: {a.get('ors_score', 0):.0f})"
-                            for a in valid_alerts
-                        ],
+                        marker=dict(size=sizes, color=colors),
+                        text=[f"{_esc(a['title'][:50])} (ORS:{a.get('ors_score', 0):.0f})" for a in valid_alerts],
                         name="Alert Locations",
                     ))
-                all_lats = (
-                    [loc["lat"] for loc in valid_locs]
-                    + [a["lat"] for a in valid_alerts]
-                )
-                all_lons = (
-                    [loc["lon"] for loc in valid_locs]
-                    + [a["lon"] for a in valid_alerts]
-                )
+                all_lats = [loc["lat"] for loc in valid_locs] + [a["lat"] for a in valid_alerts]
+                all_lons = [loc["lon"] for loc in valid_locs] + [a["lon"] for a in valid_alerts]
                 center_lat = sum(all_lats) / len(all_lats)
                 center_lon = sum(all_lons) / len(all_lons)
                 fig.update_layout(
                     mapbox=dict(
-                        style="open-street-map",
+                        style=UI_MAP_STYLE,
                         center=dict(lat=center_lat, lon=center_lon),
                         zoom=3,
                     ),
-                    height=400,
-                    margin=dict(l=0, r=0, t=0, b=0),
-                    showlegend=True,
-                    legend=dict(x=0, y=1),
+                    height=450, margin=dict(l=0, r=0, t=0, b=0),
+                    showlegend=True, legend=dict(x=0, y=1, font=dict(color=UI_TEXT_PRIMARY)),
+                    paper_bgcolor=UI_MAP_BG,
                 )
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info(
-                    "No geospatial data available. Protected locations and "
-                    "geocoded alerts will appear here once ingested."
+                _empty(
+                    "Protected locations will appear here. Run <code>make scrape</code> to ingest geocoded alerts.",
+                    "\U0001F30D",
                 )
-        except Exception:
-            st.info("Geospatial data will appear once alerts with locations are ingested.")
+        except requests.RequestException:
+            _empty("Geospatial data loading...", "\U0001F30D")
 
-        # Risk Score Distribution
-        st.subheader("Risk Score Distribution")
-        alerts_dist = _get("/alerts", params={"limit": 500, "include_demo": 0})
-        if alerts_dist:
-            scores = [a["risk_score"] for a in alerts_dist if a.get("risk_score")]
-            if scores:
-                fig = px.histogram(
-                    x=scores, nbins=20,
-                    labels={"x": "ORS", "y": "Count"},
-                    color_discrete_sequence=["#0f4c81"],
-                )
-                fig.update_layout(
-                    xaxis_title="Operational Risk Score",
-                    yaxis_title="Alert Count",
-                )
+        # --- Analytics Row ---
+        c_sev, c_kw, c_themes = st.columns(3)
+
+        with c_sev:
+            st.markdown("##### Severity Distribution")
+            by_sev = summary.get("by_severity", {})
+            if by_sev:
+                sev_df = pd.DataFrame(list(by_sev.items()), columns=["Severity", "Count"])
+                order = ["critical", "high", "medium", "low"]
+                sev_df["Severity"] = pd.Categorical(sev_df["Severity"], categories=order, ordered=True)
+                sev_df = sev_df.sort_values("Severity")
+                fig = px.bar(sev_df, x="Severity", y="Count", color="Severity", color_discrete_map=SEVERITY_COLORS)
+                fig.update_layout(showlegend=False)
                 _style(fig, 280)
                 st.plotly_chart(fig, use_container_width=True)
+            else:
+                _empty("No severity data yet.")
+
+        with c_kw:
+            st.markdown("##### Top Keywords")
+            top_kw = summary.get("top_keywords", {})
+            if top_kw:
+                kw_df = pd.DataFrame(list(top_kw.items()), columns=["Keyword", "Count"])
+                kw_df = kw_df.sort_values("Count", ascending=True).tail(10)
+                fig = px.bar(kw_df, x="Count", y="Keyword", orientation="h", color_discrete_sequence=["#3b82f6"])
+                fig.update_layout(showlegend=False)
+                _style(fig, 280)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                _empty("Keywords populate after scraping.")
+
+        with c_themes:
+            st.markdown("##### Emerging Themes")
+            themes = report.get("emerging_themes", [])
+            if themes:
+                th_df = pd.DataFrame(themes)
+                y_col = "term" if "term" in th_df.columns else "keyword" if "keyword" in th_df.columns else None
+                x_col = "spike_ratio" if "spike_ratio" in th_df.columns else "z_score" if "z_score" in th_df.columns else None
+                if y_col and x_col:
+                    fig = px.bar(th_df, x=x_col, y=y_col, orientation="h", color_discrete_sequence=["#06b6d4"])
+                    fig.update_layout(showlegend=False)
+                    _style(fig, 280)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    _empty("Themes data format pending.")
+            else:
+                _empty("Spike detection needs 3+ days of data.")
+
+        # --- Escalation Tiers ---
+        try:
+            tiers_data = fetch_escalation_tiers()
+            tier_list = tiers_data.get("tiers", [])
+            if tier_list:
+                tier_html = '<div style="display:flex;gap:10px;margin-top:8px;">'
+                for tier in tier_list:
+                    label = tier["label"]
+                    css = TIER_CSS.get(label, TIER_CSS["LOW"])
+                    window = tier.get("response_window", "N/A")
+                    notify = ", ".join(tier.get("notify", [])) or "\u2014"
+                    tier_html += (
+                        f'<div style="flex:1;{css};border-radius:6px;padding:10px 14px;text-align:center;">'
+                        f'<div style="font-weight:700;font-size:0.85rem;">{_esc(label)}</div>'
+                        f'<div style="font-size:0.72rem;opacity:0.8;">Score {tier["threshold"]}+ \u2022 {_esc(window)}</div>'
+                        f'<div style="font-size:0.68rem;opacity:0.6;">Notify: {_esc(notify)}</div>'
+                        f'</div>'
+                    )
+                tier_html += "</div>"
+                st.markdown(tier_html, unsafe_allow_html=True)
+        except requests.RequestException:
+            _empty("Escalation tiers unavailable.")
 
     except requests.RequestException as e:
         st.error(f"Cannot load overview: {e}")
 
 
 # ============================================================
-# TAB 2: PROTECTEES
+# TAB 2: ALERT TRIAGE
 # ============================================================
 with tabs[1]:
-    st.subheader("Protectee Management")
+    st.markdown("##### Alert Triage Queue")
+
+    fc1, fc2, fc3, fc4 = st.columns([1, 1, 1.5, 1])
+    severity_filter = fc1.selectbox("Severity", ["All", "critical", "high", "medium", "low"], key="triage_sev")
+    review_filter = fc2.selectbox("Status", ["All", "Unreviewed", "Reviewed"], key="triage_status")
+    min_score = fc3.slider("Min ORS", 0.0, 100.0, 0.0, 5.0, key="triage_ors")
+    alert_limit = fc4.selectbox("Show", [50, 100, 200], index=1, key="triage_limit")
 
     try:
-        pois = _get("/pois")
-        if pois:
-            for poi in pois:
-                sensitivity = min(poi.get("sensitivity", 3), 5)
-                sens_labels = ["", "LOW", "GUARDED", "ELEVATED", "HIGH", "CRITICAL"]
-                sens_label = sens_labels[sensitivity]
-                aliases = [a["alias"] for a in poi.get("aliases", [])]
-
-                with st.expander(
-                    f"**{poi['name']}** -- {poi.get('org', 'N/A')} | "
-                    f"{poi.get('role', 'N/A')} | Sensitivity: {sens_label}"
-                ):
-                    mc1, mc2, mc3 = st.columns(3)
-                    mc1.write(f"**Organization:** {poi.get('org', 'N/A')}")
-                    mc2.write(f"**Role:** {poi.get('role', 'N/A')}")
-                    mc3.write(f"**Aliases:** {', '.join(aliases) if aliases else 'None'}")
-
-                    # TAS Assessment
-                    st.markdown("**Threat Assessment (TAS)**")
-                    try:
-                        assessment = _get(
-                            f"/pois/{poi['id']}/assessment",
-                            params={"window_days": 14},
-                        )
-                        if assessment and assessment.get("tas_score") is not None:
-                            tas = assessment["tas_score"]
-                            ac1, ac2, ac3, ac4, ac5 = st.columns(5)
-                            ac1.metric("TAS Score", f"{tas:.1f}")
-                            ac2.metric(
-                                "Fixation",
-                                "YES" if assessment.get("fixation") else "no",
-                            )
-                            ac3.metric(
-                                "Energy Burst",
-                                "YES" if assessment.get("energy_burst") else "no",
-                            )
-                            ac4.metric(
-                                "Leakage",
-                                "YES" if assessment.get("leakage") else "no",
-                            )
-                            ac5.metric(
-                                "Pathway",
-                                "YES" if assessment.get("pathway") else "no",
-                            )
-
-                            esc = assessment.get("escalation", {})
-                            if esc and esc.get("tier"):
-                                tier = esc["tier"]
-                                css = f"tier-{tier.lower()}"
-                                st.markdown(
-                                    f'<span class="tier-badge {css}">{tier}</span> '
-                                    f'{esc.get("reason", "")}',
-                                    unsafe_allow_html=True,
-                                )
-                                actions = esc.get("recommended_actions", [])
-                                if actions:
-                                    for action in actions:
-                                        st.write(f"- {action}")
-                        else:
-                            st.info(
-                                "No assessment data. Alerts must be ingested and "
-                                "matched to this protectee."
-                            )
-                    except Exception:
-                        st.info("No assessment available.")
-
-                    # Recent Hits
-                    st.markdown("**Recent Alert Hits (14 days)**")
-                    try:
-                        hits = _get(
-                            f"/pois/{poi['id']}/hits", params={"days": 14}
-                        )
-                        if hits:
-                            hits_df = pd.DataFrame(hits)
-                            cols = [
-                                c
-                                for c in [
-                                    "title", "severity", "ors_score",
-                                    "match_value", "timestamp",
-                                ]
-                                if c in hits_df.columns
-                            ]
-                            st.dataframe(
-                                hits_df[cols],
-                                use_container_width=True,
-                                hide_index=True,
-                            )
-                        else:
-                            st.info("No alert hits in the last 14 days.")
-                    except Exception:
-                        st.info("No hit data available.")
-
-                    # Generate SITREP
-                    if st.button(
-                        "Generate SITREP", key=f"sitrep_poi_{poi['id']}"
-                    ):
-                        try:
-                            sitrep = _post(
-                                f"/sitreps/generate/poi/{poi['id']}"
-                            )
-                            st.success(
-                                f"SITREP generated: {sitrep.get('title', 'N/A')}"
-                            )
-                        except Exception as e:
-                            st.warning(f"Could not generate SITREP: {e}")
-        else:
-            st.info(
-                "No protectees configured. Add one below or define in "
-                "config/watchlist.yaml."
-            )
-
-        # Add POI form
-        st.divider()
-        st.markdown("#### Register New Protectee")
-        with st.form("add_poi"):
-            pc1, pc2, pc3, pc4 = st.columns(4)
-            poi_name = pc1.text_input("Name")
-            poi_org = pc2.text_input("Organization")
-            poi_role = pc3.text_input("Role")
-            poi_sens = pc4.slider("Sensitivity", 1, 5, 3)
-            poi_aliases = st.text_input("Aliases (comma-separated)")
-            if st.form_submit_button("Register Protectee") and poi_name:
-                alias_list = (
-                    [a.strip() for a in poi_aliases.split(",") if a.strip()]
-                    if poi_aliases
-                    else []
-                )
-                try:
-                    _post(
-                        "/pois",
-                        payload={
-                            "name": poi_name,
-                            "org": poi_org,
-                            "role": poi_role,
-                            "sensitivity": poi_sens,
-                            "aliases": alias_list,
-                        },
-                    )
-                    st.success(f"Registered: {poi_name}")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
-    except requests.RequestException as e:
-        st.error(f"Cannot load protectee data: {e}")
-
-
-# ============================================================
-# TAB 3: THREAT SUBJECTS
-# ============================================================
-with tabs[2]:
-    st.subheader("Behavioral Threat Assessment")
-    st.caption(
-        "Pathway-to-violence model with 8 weighted indicators tracking "
-        "escalation risk over time."
-    )
-
-    try:
-        subjects = _get("/threat-subjects")
-
-        if subjects:
-            for subj in subjects:
-                score = subj.get("latest_pathway_score") or 0
-                tier = subj.get("risk_tier", "LOW")
-                trend = subj.get("latest_trend", "stable")
-                css = f"tier-{tier.lower()}"
-
-                with st.expander(
-                    f"**{subj['name']}** | Score: {score:.1f} | {tier} | "
-                    f"Trend: {trend}"
-                ):
-                    sc1, sc2, sc3, sc4 = st.columns(4)
-                    sc1.metric("Pathway Score", f"{score:.1f}")
-                    sc2.markdown(
-                        f'<span class="tier-badge {css}">{tier}</span>',
-                        unsafe_allow_html=True,
-                    )
-                    sc3.write(f"**Trend:** {trend}")
-                    linked = subj.get("linked_poi_id")
-                    sc4.write(f"**Linked POI ID:** {linked or 'None'}")
-
-                    # Assessment detail
-                    try:
-                        detail = _get(f"/threat-subjects/{subj['id']}")
-                        history = detail.get("assessment_history", [])
-                        if history:
-                            latest = history[0]
-                            indicators = [
-                                "Grievance", "Fixation", "Identification",
-                                "Novel Aggression", "Energy Burst", "Leakage",
-                                "Last Resort", "Direct Threat",
-                            ]
-                            indicator_keys = [
-                                "grievance_level", "fixation_level",
-                                "identification_level", "novel_aggression",
-                                "energy_burst", "leakage", "last_resort",
-                                "directly_communicated_threat",
-                            ]
-                            values = [
-                                float(latest.get(k, 0)) for k in indicator_keys
-                            ]
-                            values_closed = values + [values[0]]
-                            indicators_closed = indicators + [indicators[0]]
-
-                            radar_col, trend_col = st.columns(2)
-                            with radar_col:
-                                fig = go.Figure()
-                                fig.add_trace(
-                                    go.Scatterpolar(
-                                        r=values_closed,
-                                        theta=indicators_closed,
-                                        fill="toself",
-                                        fillcolor="rgba(180, 35, 24, 0.15)",
-                                        line=dict(color="#b42318", width=2),
-                                        name="Current",
-                                    )
-                                )
-                                fig.update_layout(
-                                    polar=dict(
-                                        radialaxis=dict(
-                                            visible=True, range=[0, 1]
-                                        ),
-                                        bgcolor="white",
-                                    ),
-                                    showlegend=False,
-                                    title="Behavioral Indicator Profile",
-                                    height=380,
-                                    margin=dict(l=60, r=60, t=50, b=40),
-                                )
-                                st.plotly_chart(fig, use_container_width=True)
-
-                            with trend_col:
-                                if len(history) > 1:
-                                    hist_df = pd.DataFrame(history)
-                                    hist_df = hist_df.sort_values(
-                                        "assessment_date"
-                                    )
-                                    fig = px.line(
-                                        hist_df,
-                                        x="assessment_date",
-                                        y="pathway_score",
-                                        title="Pathway Score Trend",
-                                        markers=True,
-                                    )
-                                    fig.add_hline(
-                                        y=75, line_dash="dash",
-                                        line_color="#b42318",
-                                        annotation_text="CRITICAL",
-                                    )
-                                    fig.add_hline(
-                                        y=50, line_dash="dash",
-                                        line_color="#c2410c",
-                                        annotation_text="ELEVATED",
-                                    )
-                                    fig.add_hline(
-                                        y=25, line_dash="dash",
-                                        line_color="#b08900",
-                                        annotation_text="ROUTINE",
-                                    )
-                                    _style(fig, 380)
-                                    st.plotly_chart(
-                                        fig, use_container_width=True
-                                    )
-                                else:
-                                    st.info(
-                                        "Submit additional assessments to "
-                                        "view the trend chart."
-                                    )
-
-                            if latest.get("evidence_summary"):
-                                st.markdown(
-                                    f"**Evidence:** {latest['evidence_summary']}"
-                                )
-                            if latest.get("analyst_notes"):
-                                st.markdown(
-                                    f"**Analyst Notes:** "
-                                    f"{latest['analyst_notes']}"
-                                )
-                    except Exception:
-                        pass
-
-                    # Assessment form
-                    st.markdown("**Submit New Assessment**")
-                    with st.form(f"assess_{subj['id']}"):
-                        f1, f2, f3, f4 = st.columns(4)
-                        grievance = f1.slider(
-                            "Grievance", 0.0, 1.0, 0.0, 0.05,
-                            key=f"g_{subj['id']}",
-                        )
-                        fixation = f2.slider(
-                            "Fixation", 0.0, 1.0, 0.0, 0.05,
-                            key=f"f_{subj['id']}",
-                        )
-                        identification = f3.slider(
-                            "Identification", 0.0, 1.0, 0.0, 0.05,
-                            key=f"i_{subj['id']}",
-                        )
-                        novel_agg = f4.slider(
-                            "Novel Aggression", 0.0, 1.0, 0.0, 0.05,
-                            key=f"n_{subj['id']}",
-                        )
-                        f5, f6, f7, f8 = st.columns(4)
-                        energy = f5.slider(
-                            "Energy Burst", 0.0, 1.0, 0.0, 0.05,
-                            key=f"e_{subj['id']}",
-                        )
-                        leak = f6.slider(
-                            "Leakage", 0.0, 1.0, 0.0, 0.05,
-                            key=f"l_{subj['id']}",
-                        )
-                        last_resort = f7.slider(
-                            "Last Resort", 0.0, 1.0, 0.0, 0.05,
-                            key=f"lr_{subj['id']}",
-                        )
-                        direct_threat = f8.slider(
-                            "Direct Threat", 0.0, 1.0, 0.0, 0.05,
-                            key=f"d_{subj['id']}",
-                        )
-                        evidence = st.text_area(
-                            "Evidence Summary", key=f"ev_{subj['id']}"
-                        )
-                        notes = st.text_input(
-                            "Analyst Notes", key=f"an_{subj['id']}"
-                        )
-
-                        if st.form_submit_button("Submit Assessment"):
-                            try:
-                                result = _post(
-                                    f"/threat-subjects/{subj['id']}/assess",
-                                    payload={
-                                        "grievance_level": grievance,
-                                        "fixation_level": fixation,
-                                        "identification_level": identification,
-                                        "novel_aggression": novel_agg,
-                                        "energy_burst": energy,
-                                        "leakage": leak,
-                                        "last_resort": last_resort,
-                                        "directly_communicated_threat": direct_threat,
-                                        "evidence_summary": evidence,
-                                        "analyst_notes": notes,
-                                    },
-                                )
-                                st.success(
-                                    f"Assessment saved. Score: "
-                                    f"{result['pathway_score']:.1f} "
-                                    f"({result['risk_tier']}) -- "
-                                    f"Trend: {result['escalation_trend']}"
-                                )
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
-        else:
-            st.info("No threat subjects registered. Add one below.")
-
-        # Register new subject
-        st.divider()
-        st.markdown("#### Register New Threat Subject")
-        with st.form("add_subject"):
-            ts1, ts2 = st.columns(2)
-            ts_name = ts1.text_input("Subject Name")
-            ts_aliases = ts2.text_input("Aliases (comma-separated)")
-            ts3, ts4 = st.columns(2)
-            try:
-                poi_list = _get("/pois")
-                poi_opts = {"None": None}
-                poi_opts.update({p["name"]: p["id"] for p in poi_list})
-                linked_poi = ts3.selectbox(
-                    "Link to Protectee", list(poi_opts.keys())
-                )
-            except Exception:
-                linked_poi = "None"
-                poi_opts = {"None": None}
-            ts_notes = ts4.text_input("Notes")
-
-            if st.form_submit_button("Register Subject") and ts_name:
-                alias_list = (
-                    [a.strip() for a in ts_aliases.split(",") if a.strip()]
-                    if ts_aliases
-                    else []
-                )
-                try:
-                    _post(
-                        "/threat-subjects",
-                        payload={
-                            "name": ts_name,
-                            "aliases": alias_list,
-                            "linked_poi_id": poi_opts[linked_poi],
-                            "notes": ts_notes,
-                        },
-                    )
-                    st.success(f"Registered: {ts_name}")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
-    except requests.RequestException as e:
-        st.error(f"Cannot load threat subjects: {e}")
-
-
-# ============================================================
-# TAB 4: DAILY BRIEFING
-# ============================================================
-with tabs[3]:
-    st.subheader("Daily Intelligence Briefing")
-    report_date = st.date_input("Report Date", value=date.today())
-
-    try:
-        report = _get(
-            "/intelligence/daily",
-            params={
-                "date": report_date.strftime("%Y-%m-%d"),
-                "include_demo": 0,
-            },
-        )
-
-        st.markdown("### Executive Summary")
-        st.info(report.get("executive_summary", "No data available for this date."))
-
-        stats = report.get("stats", {})
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total", stats.get("total_alerts", 0))
-        c2.metric("Critical", stats.get("critical_count", 0))
-        c3.metric("High", stats.get("high_count", 0))
-        c4.metric("Medium", stats.get("medium_count", 0))
-
-        st.divider()
-
-        # Escalation Recommendations
-        escalations = report.get("escalation_recommendations", [])
-        st.markdown("### Escalation Recommendations")
-        if escalations:
-            for esc in escalations:
-                priority = esc.get("priority", "MEDIUM")
-                if priority == "IMMEDIATE":
-                    st.error(f"**[{priority}]** {esc.get('action', '')}")
-                elif priority == "HIGH":
-                    st.warning(f"**[{priority}]** {esc.get('action', '')}")
-                else:
-                    st.info(f"**[{priority}]** {esc.get('action', '')}")
-        else:
-            st.success("No escalation items at this time.")
-
-        st.divider()
-
-        # Top Risks
-        top_risks = report.get("top_risks", [])
-        st.markdown("### Top Risks")
-        if top_risks:
-            risk_df = pd.DataFrame(top_risks)
-            cols = [
-                c
-                for c in ["title", "risk_score", "severity", "source_name", "keyword"]
-                if c in risk_df.columns
-            ]
-            if cols:
-                st.dataframe(
-                    risk_df[cols].rename(
-                        columns={
-                            "title": "Title",
-                            "risk_score": "ORS",
-                            "severity": "Severity",
-                            "source_name": "Source",
-                            "keyword": "Keyword",
-                        }
-                    ),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-        else:
-            st.info("No alerts found for this date.")
-
-        st.divider()
-
-        # Emerging Themes
-        themes = report.get("emerging_themes", [])
-        st.markdown("### Emerging Themes (Frequency Spikes)")
-        if themes:
-            themes_df = pd.DataFrame(themes)
-            fig = px.bar(
-                themes_df, x="term", y="spike_ratio",
-                color="spike_ratio", color_continuous_scale="Blues",
-                labels={"term": "Keyword", "spike_ratio": "Spike Ratio (vs 7d avg)"},
-            )
-            _style(fig, 350)
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info(
-                "No keyword spikes detected. Spike detection requires "
-                "3+ days of scraping data."
-            )
-
-    except requests.RequestException as e:
-        st.error(f"Cannot connect to API: {e}")
-    except Exception as e:
-        st.error(f"Error generating report: {e}")
-
-
-# ============================================================
-# TAB 5: ALERT QUEUE
-# ============================================================
-with tabs[4]:
-    st.subheader("Alert Queue")
-
-    fc1, fc2, fc3 = st.columns(3)
-    severity_filter = fc1.selectbox(
-        "Severity", ["All", "critical", "high", "medium", "low"]
-    )
-    review_filter = fc2.selectbox("Status", ["All", "Unreviewed", "Reviewed"])
-    min_score = fc3.slider("Min ORS", 0.0, 100.0, 0.0, 5.0)
-
-    params = {"limit": 100, "sort_by": "risk_score", "include_demo": 0}
-    if severity_filter != "All":
-        params["severity"] = severity_filter
-    if review_filter == "Unreviewed":
-        params["reviewed"] = 0
-    elif review_filter == "Reviewed":
-        params["reviewed"] = 1
-    if min_score > 0:
-        params["min_score"] = min_score
-
-    try:
-        alerts = _get("/alerts", params=params)
+        alerts = fetch_alerts(severity_filter, review_filter, min_score, alert_limit)
 
         if alerts:
-            for alert in alerts:
-                sev = alert["severity"]
-                tag = SEVERITY_LABELS.get(sev, sev.upper())
-                reviewed = "REVIEWED" if alert["reviewed"] else "OPEN"
-                ors = alert.get("ors_score") or alert.get("risk_score") or 0
-                tas = alert.get("tas_score") or 0
+            # Build table
+            triage_left, triage_right = st.columns([3, 2])
 
-                with st.expander(
-                    f"[{tag} ORS:{ors:.0f}] "
-                    f"{alert['title'][:100]} ({reviewed})"
-                ):
-                    m1, m2, m3, m4, m5 = st.columns(5)
-                    m1.metric("ORS", f"{ors:.1f}")
-                    m2.metric("TAS", f"{tas:.1f}")
-                    m3.write(
-                        f"**Source:** {alert.get('source_name', 'Unknown')}"
+            with triage_left:
+                rows = []
+                for a in alerts:
+                    ors = a.get("ors_score") or a.get("risk_score") or 0
+                    tas = a.get("tas_score") or 0
+                    rows.append({
+                        "ID": a["id"],
+                        "Severity": a["severity"].upper(),
+                        "Title": a["title"][:70],
+                        "ORS": round(ors, 1),
+                        "TAS": round(tas, 1),
+                        "Source": a.get("source_name", "?")[:20],
+                        "Keyword": (a.get("matched_term") or "")[:20],
+                        "Status": "\u2705" if a.get("reviewed") else "\U0001F7E0",
+                    })
+                alert_df = pd.DataFrame(rows)
+                event = st.dataframe(
+                    alert_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    key="alert_table",
+                )
+
+            with triage_right:
+                selected_rows = event.selection.rows if event and event.selection else []
+                if selected_rows:
+                    sel_idx = selected_rows[0]
+                    sel_alert = alerts[sel_idx]
+                    sel_id = sel_alert["id"]
+                    ors_val = sel_alert.get("ors_score") or sel_alert.get("risk_score") or 0
+                    tas_val = sel_alert.get("tas_score") or 0
+
+                    st.markdown(
+                        f'{_sev_badge(sel_alert["severity"])} '
+                        f'<span style="color:{UI_TEXT_PRIMARY};font-weight:600;"> {_esc(sel_alert["title"][:80])}</span>',
+                        unsafe_allow_html=True,
                     )
-                    m4.write(
-                        f"**Keyword:** {alert.get('matched_term', 'N/A')}"
-                    )
-                    m5.write(f"**Time:** {alert['created_at']}")
-
-                    if alert.get("url"):
-                        st.write(f"**URL:** {alert['url']}")
-                    if alert.get("content"):
-                        st.write(f"**Content:** {alert['content'][:500]}...")
-
-                    # Score breakdown with uncertainty
-                    try:
-                        score_data = _get(
-                            f"/alerts/{alert['id']}/score",
-                            params={"uncertainty": 1, "n": 500},
+                    if sel_alert.get("url"):
+                        st.caption(sel_alert["url"])
+                    if sel_alert.get("content"):
+                        st.markdown(
+                            f'<div style="color:{UI_TEXT_SECONDARY};font-size:0.82rem;margin:6px 0 10px 0;">'
+                            f'{_esc(sel_alert["content"][:400]).replace(chr(10), "<br>")}</div>',
+                            unsafe_allow_html=True,
                         )
-                        if "keyword_weight" in score_data:
-                            st.markdown("**Score Decomposition:**")
-                            s1, s2, s3, s4, s5, s6 = st.columns(6)
-                            s1.metric(
-                                "Keyword Wt",
-                                f"{score_data['keyword_weight']:.1f}",
-                            )
-                            s2.metric(
-                                "Credibility",
-                                f"{score_data['source_credibility']:.2f}",
-                            )
-                            s3.metric(
-                                "Frequency",
-                                f"{score_data['frequency_factor']:.1f}x",
-                            )
-                            s4.metric(
-                                "Recency",
-                                f"{score_data['recency_factor']:.2f}",
-                            )
-                            s5.metric(
-                                "Proximity",
-                                f"{score_data.get('proximity_factor', 0):.2f}",
-                            )
-                            s6.metric(
-                                "POI Factor",
-                                f"{score_data.get('poi_factor', 0):.2f}",
-                            )
 
-                            unc = score_data.get("uncertainty")
-                            if unc:
-                                st.markdown(
-                                    f"**Monte Carlo Interval** (n="
-                                    f"{unc.get('n', 500)}): "
-                                    f"Mean={unc.get('mean', 0):.1f} | "
-                                    f"P5={unc.get('p5', 0):.1f} | "
-                                    f"P95={unc.get('p95', 0):.1f} | "
-                                    f"Std={unc.get('std', 0):.2f}"
-                                )
-                    except Exception:
-                        pass
+                    # Score decomposition
+                    try:
+                        score_data = _get(f"/alerts/{sel_id}/score", params={"uncertainty": 1, "n": 500})
+                        st.markdown("**Score Decomposition**")
+                        s1, s2, s3 = st.columns(3)
+                        s1.metric("Keyword Wt", f"{score_data.get('keyword_weight', 0):.1f}")
+                        s2.metric("Credibility", f"{score_data.get('source_credibility', 0):.2f}")
+                        s3.metric("Frequency", f"{score_data.get('frequency_factor', 0):.1f}x")
+                        s4, s5, s6 = st.columns(3)
+                        s4.metric("Recency", f"{score_data.get('recency_factor', 0):.2f}")
+                        s5.metric("Proximity", f"{score_data.get('proximity_factor', 0):.2f}")
+                        s6.metric("POI Factor", f"{score_data.get('poi_factor', 0):.2f}")
+
+                        unc = score_data.get("uncertainty")
+                        if unc:
+                            st.markdown(
+                                f'<div style="background:{UI_PANEL_BG};border:1px solid {UI_BORDER};border-radius:6px;'
+                                f'padding:8px 12px;font-size:0.78rem;color:{UI_TEXT_SECONDARY};margin-top:6px;">'
+                                f'\U0001F3AF <strong style="color:{UI_TEXT_PRIMARY};">Monte Carlo</strong> (n={unc.get("n", 500)}) '
+                                f'| Mean: {unc.get("mean", 0):.1f} '
+                                f'| P5: {unc.get("p05", unc.get("p5", 0)):.1f} '
+                                f'| P95: {unc.get("p95", 0):.1f} '
+                                f'| Std: {unc.get("std", 0):.2f}</div>',
+                                unsafe_allow_html=True,
+                            )
+                    except requests.RequestException:
+                        st.caption("Score decomposition unavailable.")
 
                     # Action buttons
-                    btn1, btn2, btn3 = st.columns(3)
-                    if not alert["reviewed"]:
-                        if btn1.button(
-                            "Mark Reviewed", key=f"rev_{alert['id']}"
-                        ):
-                            _patch(f"/alerts/{alert['id']}/review")
+                    st.markdown("")
+                    b1, b2, b3 = st.columns(3)
+                    if not sel_alert.get("reviewed"):
+                        if b1.button("\u2705 Reviewed", key=f"rev_{sel_id}"):
+                            _patch(f"/alerts/{sel_id}/review")
+                            st.cache_data.clear()
                             st.rerun()
-                        if btn2.button(
-                            "True Positive", key=f"tp_{alert['id']}"
-                        ):
-                            _patch(
-                                f"/alerts/{alert['id']}/classify",
-                                payload={
-                                    "classification": "true_positive"
-                                },
-                            )
-                            st.success(
-                                "Classified as TP. Source credibility updated."
-                            )
+                        if b2.button("\u2714 True Pos", key=f"tp_{sel_id}"):
+                            _patch(f"/alerts/{sel_id}/classify", payload={"classification": "true_positive"})
+                            st.cache_data.clear()
                             st.rerun()
-                        if btn3.button(
-                            "False Positive", key=f"fp_{alert['id']}"
-                        ):
-                            _patch(
-                                f"/alerts/{alert['id']}/classify",
-                                payload={
-                                    "classification": "false_positive"
-                                },
-                            )
-                            st.success(
-                                "Classified as FP. Source credibility updated."
-                            )
+                        if b3.button("\u2718 False Pos", key=f"fp_{sel_id}"):
+                            _patch(f"/alerts/{sel_id}/classify", payload={"classification": "false_positive"})
+                            st.cache_data.clear()
                             st.rerun()
+                    else:
+                        st.markdown(
+                            '<span style="color:#22c55e;font-weight:600;">\u2705 Already reviewed</span>',
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    _empty("Select an alert from the table to view details and score decomposition.", "\u2190")
+
+            # ORS Distribution
+            st.markdown("##### Risk Score Distribution")
+            scores = [a.get("risk_score") or a.get("ors_score") or 0 for a in alerts if (a.get("risk_score") or a.get("ors_score"))]
+            if scores:
+                fig = px.histogram(x=scores, nbins=25, color_discrete_sequence=["#3b82f6"],
+                                   labels={"x": "ORS", "y": "Count"})
+                fig.add_vline(x=85, line_dash="dash", line_color="#ef4444", annotation_text="CRITICAL",
+                              annotation=dict(font_color="#ef4444"))
+                fig.add_vline(x=65, line_dash="dash", line_color="#f97316", annotation_text="ELEVATED",
+                              annotation=dict(font_color="#f97316"))
+                fig.update_layout(xaxis_title="Operational Risk Score", yaxis_title="Alert Count")
+                _style(fig, 260)
+                st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("No alerts match your filters.")
+            _empty("No alerts match your filters. Adjust severity or ORS thresholds, or run the scraper.", "\U0001F50D")
 
     except requests.RequestException as e:
         st.error(f"Cannot load alerts: {e}")
 
 
 # ============================================================
-# TAB 6: TRAVEL SECURITY
+# TAB 3: PROTECTEE RISK
 # ============================================================
-with tabs[5]:
-    st.subheader("Travel Security Briefings")
-
-    st.markdown("#### Generate Travel Brief")
-    with st.form("travel_brief"):
-        tb1, tb2, tb3 = st.columns(3)
-        destination = tb1.text_input("Destination (city, country)")
-        start_dt = tb2.date_input("Start Date", value=date.today())
-        end_dt = tb3.date_input("End Date", value=date.today())
-
-        tb4, tb5 = st.columns(2)
-        try:
-            poi_list = _get("/pois")
-            poi_opts = {"None": None}
-            poi_opts.update({p["name"]: p["id"] for p in poi_list})
-            travel_poi = tb4.selectbox(
-                "Linked Protectee", list(poi_opts.keys())
-            )
-        except Exception:
-            travel_poi = "None"
-            poi_opts = {"None": None}
-        try:
-            loc_list = _get("/locations/protected")
-            loc_opts = {"None": None}
-            loc_opts.update({loc["name"]: loc["id"] for loc in loc_list})
-            travel_loc = tb5.selectbox(
-                "Linked Facility", list(loc_opts.keys())
-            )
-        except Exception:
-            travel_loc = "None"
-            loc_opts = {"None": None}
-
-        if st.form_submit_button("Generate Brief") and destination:
-            try:
-                brief = _post(
-                    "/briefs/travel",
-                    payload={
-                        "destination": destination,
-                        "start_dt": start_dt.strftime("%Y-%m-%d"),
-                        "end_dt": end_dt.strftime("%Y-%m-%d"),
-                        "poi_id": poi_opts.get(travel_poi),
-                        "protected_location_id": loc_opts.get(travel_loc),
-                    },
-                )
-                st.success(f"Travel brief generated for {destination}.")
-                st.markdown("---")
-                st.markdown(brief.get("content_md", "No content generated."))
-            except Exception as e:
-                st.error(f"Error generating brief: {e}")
-
-    st.divider()
-
-    st.markdown("#### Previous Briefs")
-    try:
-        briefs = _get("/briefs/travel", params={"limit": 20})
-        if briefs:
-            for brief in briefs:
-                st.write(
-                    f"**{brief['destination']}** | "
-                    f"{brief['start_dt']} to {brief['end_dt']} | "
-                    f"Generated: {brief['created_at']}"
-                )
-        else:
-            st.info("No travel briefs generated yet.")
-    except Exception:
-        pass
-
-
-# ============================================================
-# TAB 7: SITREPs
-# ============================================================
-with tabs[6]:
-    st.subheader("Situation Reports")
-
-    sitrep_status = st.selectbox(
-        "Filter by Status", ["All", "draft", "issued"]
-    )
+with tabs[2]:
+    st.markdown("##### Protectee Risk Assessment")
 
     try:
-        sitrep_params = {"limit": 20}
-        if sitrep_status != "All":
-            sitrep_params["status"] = sitrep_status
-        sitreps = _get("/sitreps", params=sitrep_params)
+        pois = fetch_pois()
+        if pois:
+            # Build roster table
+            roster_rows = []
+            for poi in pois:
+                sensitivity = min(poi.get("sensitivity", 3), 5)
+                sens_map = {1: "LOW", 2: "GUARDED", 3: "ELEVATED", 4: "HIGH", 5: "CRITICAL"}
+                roster_rows.append({
+                    "ID": poi["id"],
+                    "Name": poi["name"],
+                    "Organization": poi.get("org", ""),
+                    "Role": poi.get("role", ""),
+                    "Sensitivity": sens_map.get(sensitivity, "N/A"),
+                    "TAS": "\u2014",
+                    "Tier": "\u2014",
+                })
+            roster_df = pd.DataFrame(roster_rows)
+            poi_event = st.dataframe(
+                roster_df, use_container_width=True, hide_index=True,
+                on_select="rerun", selection_mode="single-row", key="poi_table",
+            )
 
-        if sitreps:
-            for sit in sitreps:
-                status_tag = (
-                    "[DRAFT]"
-                    if sit.get("status") == "draft"
-                    else "[ISSUED]"
+            # Detail panel
+            selected_poi_rows = poi_event.selection.rows if poi_event and poi_event.selection else []
+            if selected_poi_rows:
+                sel_poi = pois[selected_poi_rows[0]]
+                poi_id = sel_poi["id"]
+                aliases = [a["alias"] for a in sel_poi.get("aliases", [])]
+
+                st.markdown(f"---")
+                st.markdown(
+                    f'##### {_esc(sel_poi["name"])} '
+                    f'<span style="color:{UI_TEXT_SECONDARY};font-size:0.85rem;">| {_esc(sel_poi.get("org", ""))} | {_esc(sel_poi.get("role", ""))}</span>',
+                    unsafe_allow_html=True,
                 )
-                tier = sit.get("escalation_tier", "N/A")
-                with st.expander(
-                    f"{status_tag} [{sit.get('severity', 'N/A').upper()}] "
-                    f"{sit.get('title', 'Untitled')}"
-                ):
+                if aliases:
+                    st.caption(f"Aliases: {', '.join(aliases)}")
+
+                panel_tas, panel_subj, panel_activity = st.columns(3)
+
+                # Left: TAS Assessment
+                with panel_tas:
+                    st.markdown("**Threat Assessment**")
                     try:
-                        detail = _get(f"/sitreps/{sit['id']}")
-                        dc1, dc2, dc3 = st.columns(3)
-                        dc1.write(
-                            f"**Trigger:** {detail.get('trigger_type', 'N/A')}"
-                        )
-                        dc2.write(
-                            f"**Severity:** "
-                            f"{detail.get('severity', 'N/A').upper()}"
-                        )
-                        if tier in TIER_COLORS:
-                            css = f"tier-{tier.lower()}"
-                            dc3.markdown(
-                                f'**Tier:** '
-                                f'<span class="tier-badge {css}">{tier}</span>',
-                                unsafe_allow_html=True,
-                            )
+                        assessment = fetch_poi_assessment(poi_id)
+                        if assessment and assessment.get("tas_score") is not None:
+                            tas_val = assessment["tas_score"]
 
-                        if detail.get("situation_summary"):
-                            st.markdown(
-                                f"**Situation:** "
-                                f"{detail['situation_summary']}"
-                            )
-                        if detail.get("threat_assessment"):
-                            st.markdown(
-                                f"**Assessment:** "
-                                f"{detail['threat_assessment']}"
-                            )
+                            # Gauge
+                            fig = go.Figure(go.Indicator(
+                                mode="gauge+number",
+                                value=tas_val,
+                                number={"font": {"color": UI_TEXT_PRIMARY, "size": 36}},
+                                gauge={
+                                    "axis": {
+                                        "range": [0, 100],
+                                        "tickcolor": UI_TEXT_SECONDARY,
+                                        "tickfont": {"color": UI_TEXT_SECONDARY},
+                                    },
+                                    "bar": {"color": "#3b82f6"},
+                                    "bgcolor": UI_PANEL_BG,
+                                    "bordercolor": UI_BORDER,
+                                    "steps": [
+                                        {"range": [0, 40], "color": "rgba(34,197,94,0.1)"},
+                                        {"range": [40, 65], "color": "rgba(234,179,8,0.1)"},
+                                        {"range": [65, 85], "color": "rgba(249,115,22,0.1)"},
+                                        {"range": [85, 100], "color": "rgba(239,68,68,0.1)"},
+                                    ],
+                                    "threshold": {"line": {"color": "#ef4444", "width": 3}, "thickness": 0.8, "value": 85},
+                                },
+                            ))
+                            fig.update_layout(height=220, margin=dict(l=20, r=20, t=20, b=10), paper_bgcolor=UI_PANEL_BG)
+                            st.plotly_chart(fig, use_container_width=True)
 
-                        protectees = detail.get("affected_protectees", [])
-                        if protectees and isinstance(protectees, list):
-                            st.write(
-                                f"**Affected Protectees:** "
-                                f"{', '.join(str(p) for p in protectees)}"
-                            )
+                            # TRAP-lite flags
+                            flags_html = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+                            for flag_name in ["fixation", "energy_burst", "leakage", "pathway", "targeting_specificity"]:
+                                active = assessment.get(flag_name)
+                                color = "#ef4444" if active else "#334155"
+                                icon = "\u25CF" if active else "\u25CB"
+                                label = flag_name.replace("_", " ").title()
+                                flags_html += (
+                                    f'<span style="color:{color};font-size:0.78rem;font-weight:600;">'
+                                    f'{icon} {label}</span>'
+                                )
+                            flags_html += "</div>"
+                            st.markdown(flags_html, unsafe_allow_html=True)
 
-                        locations = detail.get("affected_locations", [])
-                        if locations and isinstance(locations, list):
-                            st.write(
-                                f"**Affected Locations:** "
-                                f"{', '.join(str(loc) for loc in locations)}"
-                            )
+                            # Escalation info
+                            esc = assessment.get("escalation", {})
+                            if esc:
+                                esc_tier = esc.get("escalation_tier", esc.get("tier", {}).get("label", ""))
+                                if esc_tier:
+                                    st.markdown(f"{_tier_badge(esc_tier)}", unsafe_allow_html=True)
+                                actions = esc.get("recommended_actions", [])
+                                for act in actions[:3]:
+                                    st.markdown(
+                                        f'<span style="color:{UI_TEXT_SECONDARY};font-size:0.78rem;">\u2022 {_esc(act)}</span>',
+                                        unsafe_allow_html=True,
+                                    )
+                        else:
+                            _empty("No threat data. Ingest alerts mentioning this protectee.")
+                    except requests.RequestException:
+                        _empty("Assessment unavailable.")
 
-                        actions = detail.get("recommended_actions", [])
-                        if actions and isinstance(actions, list):
-                            st.markdown("**Recommended Actions:**")
-                            for action in actions:
-                                st.write(f"- {action}")
+                # Center: Linked Threat Subjects
+                with panel_subj:
+                    st.markdown("**Linked Threat Subjects**")
+                    try:
+                        subjects = fetch_threat_subjects()
+                        linked = [s for s in subjects if s.get("linked_poi_id") == poi_id]
+                        if linked:
+                            for subj in linked[:3]:
+                                score = subj.get("latest_pathway_score") or 0
+                                tier = subj.get("risk_tier", "LOW")
+                                st.markdown(
+                                    f'{_tier_badge(tier)} **{_esc(subj["name"])}** \u2014 Score: {score:.1f}',
+                                    unsafe_allow_html=True,
+                                )
+                                # Mini radar
+                                try:
+                                    detail = fetch_subject_detail(subj["id"])
+                                    history = detail.get("assessment_history", [])
+                                    if history:
+                                        latest = history[0]
+                                        labels = ["Grievance", "Fixation", "ID", "Aggression", "Energy", "Leakage", "Last Resort", "Direct"]
+                                        keys = ["grievance_level", "fixation_level", "identification_level", "novel_aggression",
+                                                "energy_burst", "leakage", "last_resort", "directly_communicated_threat"]
+                                        vals = [float(latest.get(k, 0)) for k in keys]
+                                        vals_c = vals + [vals[0]]
+                                        labels_c = labels + [labels[0]]
+                                        fig = go.Figure(go.Scatterpolar(
+                                            r=vals_c, theta=labels_c, fill="toself",
+                                            fillcolor="rgba(239,68,68,0.12)", line=dict(color="#ef4444", width=2),
+                                        ))
+                                        fig.update_layout(
+                                            polar=dict(
+                                                bgcolor=UI_PANEL_BG,
+                                                radialaxis=dict(
+                                                    visible=True,
+                                                    range=[0, 1],
+                                                    gridcolor=UI_GRID,
+                                                    tickfont=dict(color=UI_TEXT_SECONDARY, size=8),
+                                                ),
+                                                angularaxis=dict(gridcolor=UI_GRID, tickfont=dict(color=UI_TEXT_SECONDARY, size=8)),
+                                            ),
+                                            showlegend=False, height=240,
+                                            margin=dict(l=40, r=40, t=20, b=20), paper_bgcolor=UI_PANEL_BG,
+                                        )
+                                        st.plotly_chart(fig, use_container_width=True)
+                                except requests.RequestException:
+                                    pass
+                        else:
+                            _empty("No threat subjects linked to this protectee.")
+                    except requests.RequestException:
+                        _empty("Threat subjects unavailable.")
 
-                        notify = detail.get("escalation_notify", [])
-                        if notify and isinstance(notify, list):
-                            st.write(
-                                f"**Notify:** "
-                                f"{', '.join(str(n) for n in notify)}"
-                            )
+                # Right: Recent Activity
+                with panel_activity:
+                    st.markdown("**Recent Activity**")
+                    try:
+                        hits = fetch_poi_hits(poi_id)
+                        if hits:
+                            for h in hits[:8]:
+                                sev = h.get("severity", "low")
+                                st.markdown(
+                                    f'{_sev_badge(sev)} '
+                                    f'<span style="color:{UI_TEXT_PRIMARY};font-size:0.8rem;">{_esc(h.get("title", "")[:55])}</span>',
+                                    unsafe_allow_html=True,
+                                )
+                        else:
+                            _empty("No alert hits in the last 14 days.")
+                    except requests.RequestException:
+                        _empty("Hit data unavailable.")
 
-                        if detail.get("status") == "draft":
-                            if st.button(
-                                "Issue SITREP", key=f"issue_{sit['id']}"
-                            ):
-                                _patch(f"/sitreps/{sit['id']}/issue")
-                                st.success("SITREP issued.")
-                                st.rerun()
-                    except Exception as e:
-                        st.error(f"Cannot load detail: {e}")
+                    # SITREPs
+                    st.markdown("**SITREPs**")
+                    try:
+                        sitreps = fetch_sitreps()
+                        poi_sitreps = [
+                            s for s in sitreps if poi_id in _safe_id_set(s.get("affected_protectees", []))
+                        ]
+                        if poi_sitreps:
+                            for sit in poi_sitreps[:3]:
+                                tier = sit.get("escalation_tier", "")
+                                st.markdown(
+                                    f'{_tier_badge(tier) if tier else ""} '
+                                    f'<span style="color:{UI_TEXT_PRIMARY};font-size:0.8rem;">{_esc(sit.get("title", "")[:50])}</span>',
+                                    unsafe_allow_html=True,
+                                )
+                        else:
+                            _empty("No SITREPs for this protectee.")
+                    except requests.RequestException:
+                        _empty("SITREP data unavailable.")
+
+                    if st.button("\U0001F4DD Generate SITREP", key=f"gen_sitrep_{poi_id}"):
+                        try:
+                            sitrep = _post(f"/sitreps/generate/poi/{poi_id}")
+                            st.success(f"SITREP: {sitrep.get('title', 'Generated')}")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except requests.RequestException as e:
+                            st.warning(f"Could not generate: {e}")
+
+                # Travel Security
+                st.markdown("---")
+                st.markdown("##### Travel Security")
+                with st.form(f"travel_{poi_id}"):
+                    tb1, tb2, tb3 = st.columns(3)
+                    destination = tb1.text_input("Destination", key=f"dest_{poi_id}")
+                    start_dt = tb2.date_input("Start", value=date.today(), key=f"start_{poi_id}")
+                    end_dt = tb3.date_input("End", value=date.today(), key=f"end_{poi_id}")
+                    if st.form_submit_button("Generate Travel Brief") and destination:
+                        try:
+                            brief = _post("/briefs/travel", payload={
+                                "destination": destination,
+                                "start_dt": start_dt.strftime("%Y-%m-%d"),
+                                "end_dt": end_dt.strftime("%Y-%m-%d"),
+                                "poi_id": poi_id,
+                            })
+                            st.success(f"Brief generated for {destination}")
+                            st.markdown(brief.get("content_md", ""))
+                        except requests.RequestException as e:
+                            st.error(f"Error: {e}")
         else:
-            st.info(
-                "No SITREPs generated yet. Generate them from the "
-                "Protectees tab or via API."
-            )
+            _empty("No protectees configured. Add them in Administration or define in config/watchlist.yaml.", "\U0001F6E1")
 
     except requests.RequestException as e:
-        st.error(f"Cannot load SITREPs: {e}")
+        st.error(f"Cannot load protectees: {e}")
 
 
 # ============================================================
-# TAB 8: ANALYTICS
+# TAB 4: INTELLIGENCE ANALYSIS
 # ============================================================
-with tabs[7]:
-    st.subheader("Intelligence Analytics")
+with tabs[3]:
+    st.markdown("##### Intelligence Analysis")
 
-    # Keyword Spikes
-    st.markdown("### Keyword Frequency Spikes")
-    try:
-        spikes = _get("/analytics/spikes", params={"threshold": 1.5})
-        if spikes:
-            spike_df = pd.DataFrame(spikes)
-            fig = px.bar(
-                spike_df, x="term", y="spike_ratio",
-                color="today_count", color_continuous_scale="Blues",
-                labels={
-                    "term": "Keyword",
-                    "spike_ratio": "Spike Ratio",
-                    "today_count": "Today",
-                },
-                title="Active Keyword Spikes (vs 7-day average)",
-            )
-            _style(fig, 350)
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(spike_df, use_container_width=True, hide_index=True)
-        else:
-            st.info(
-                "No keyword spikes above threshold. "
-                "Requires 3+ days of scraping history."
-            )
-    except Exception:
-        pass
+    # Keyword Spikes + Forecast
+    col_spike, col_forecast = st.columns(2)
 
-    st.divider()
+    with col_spike:
+        st.markdown("**Keyword Frequency Spikes**")
+        try:
+            spikes = fetch_spikes(threshold=1.5)
+            if spikes:
+                spike_df = pd.DataFrame(spikes)
+                fig = px.bar(spike_df, x="term", y="spike_ratio", color="today_count",
+                             color_continuous_scale=[[0, "#1e3a5f"], [1, "#3b82f6"]],
+                             labels={"term": "Keyword", "spike_ratio": "Spike Ratio", "today_count": "Today"})
+                _style(fig, 320)
+                st.plotly_chart(fig, use_container_width=True)
+                st.dataframe(spike_df, use_container_width=True, hide_index=True)
+            else:
+                _empty("No keyword spikes above threshold. Needs 3+ days of scraping history.", "\U0001F4C8")
+        except requests.RequestException:
+            _empty("Spike data unavailable.", "\U0001F4C8")
 
-    # Keyword Trend + Forecast
-    st.markdown("### Keyword Trend & Forecast")
-    try:
-        keywords = _get("/keywords")
-        if keywords:
-            kw_map = {k["term"]: k["id"] for k in keywords}
-            selected_kw = st.selectbox(
-                "Select Keyword", list(kw_map.keys())
-            )
-            if selected_kw:
-                kw_id = kw_map[selected_kw]
-                trend_col, forecast_col = st.columns(2)
-
-                with trend_col:
-                    trend = _get(
-                        f"/analytics/keyword-trend/{kw_id}",
-                        params={"days": 14},
-                    )
-                    if trend:
-                        trend_df = pd.DataFrame(trend)
-                        fig = px.line(
-                            trend_df, x="date", y="count",
-                            title=f"14-Day Frequency: {selected_kw}",
-                            markers=True,
-                        )
-                        _style(fig, 320)
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info(
-                            "No frequency data. Run the scraper to populate."
-                        )
-
-                with forecast_col:
+    with col_forecast:
+        st.markdown("**Keyword Trend & Forecast**")
+        try:
+            keywords = fetch_keywords()
+            if keywords:
+                kw_map = {k["term"]: k["id"] for k in keywords}
+                selected_kw = st.selectbox("Keyword", list(kw_map.keys()), key="fc_kw")
+                if selected_kw:
+                    kw_id = kw_map[selected_kw]
                     try:
-                        fc_data = _get(
-                            f"/analytics/forecast/keyword/{kw_id}",
-                            params={"horizon": 7},
-                        )
+                        fc_data = _get(f"/analytics/forecast/keyword/{kw_id}", params={"horizon": 7})
                         history = fc_data.get("history", [])
                         forecast = fc_data.get("forecast", [])
                         method = fc_data.get("method", "unknown")
@@ -1235,96 +985,53 @@ with tabs[7]:
                         if history or forecast:
                             fig = go.Figure()
                             if history:
-                                fig.add_trace(
-                                    go.Scatter(
-                                        x=[h["date"] for h in history],
-                                        y=[h["count"] for h in history],
-                                        mode="lines+markers",
-                                        name="Historical",
-                                        line=dict(color="#0f4c81"),
-                                    )
-                                )
+                                fig.add_trace(go.Scatter(
+                                    x=[h["date"] for h in history], y=[h["count"] for h in history],
+                                    mode="lines+markers", name="Historical", line=dict(color="#3b82f6", width=2),
+                                    marker=dict(size=5),
+                                ))
                             if forecast:
-                                fig.add_trace(
-                                    go.Scatter(
-                                        x=[f["date"] for f in forecast],
-                                        y=[f["yhat"] for f in forecast],
-                                        mode="lines+markers",
-                                        name="Forecast",
-                                        line=dict(
-                                            color="#c2410c", dash="dash"
-                                        ),
-                                    )
-                                )
-                                fig.add_trace(
-                                    go.Scatter(
-                                        x=(
-                                            [f["date"] for f in forecast]
-                                            + [
-                                                f["date"]
-                                                for f in reversed(forecast)
-                                            ]
-                                        ),
-                                        y=(
-                                            [f["hi"] for f in forecast]
-                                            + [
-                                                f["lo"]
-                                                for f in reversed(forecast)
-                                            ]
-                                        ),
-                                        fill="toself",
-                                        fillcolor="rgba(194, 65, 12, 0.1)",
-                                        line=dict(width=0),
-                                        name="95% CI",
-                                    )
-                                )
-                            fig.update_layout(
-                                title=f"7-Day Forecast ({method})"
-                            )
-                            _style(fig, 320)
+                                fig.add_trace(go.Scatter(
+                                    x=[f["date"] for f in forecast], y=[f["yhat"] for f in forecast],
+                                    mode="lines+markers", name="Forecast", line=dict(color="#f97316", width=2, dash="dash"),
+                                    marker=dict(size=5),
+                                ))
+                                fig.add_trace(go.Scatter(
+                                    x=[f["date"] for f in forecast] + [f["date"] for f in reversed(forecast)],
+                                    y=[f["hi"] for f in forecast] + [f["lo"] for f in reversed(forecast)],
+                                    fill="toself", fillcolor="rgba(249,115,22,0.08)",
+                                    line=dict(width=0), name="95% CI",
+                                ))
+                            fig.update_layout(title=f"7-Day Forecast ({method})")
+                            _style(fig, 300)
                             st.plotly_chart(fig, use_container_width=True)
-
                             smape = quality.get("smape")
                             if smape is not None:
-                                st.caption(
-                                    f"Model: {method} | "
-                                    f"sMAPE: {smape:.1f}% | "
-                                    f"Training: "
-                                    f"{quality.get('n_train_days', 0)}d"
-                                )
+                                st.caption(f"Model: {method} | sMAPE: {smape:.1f}% | Training: {quality.get('n_train_days', 0)}d")
                         else:
-                            st.info("Insufficient data for forecasting.")
-                    except Exception:
-                        st.info("Forecasting requires historical data.")
-    except Exception:
-        pass
+                            _empty("Insufficient data for forecasting.")
+                    except requests.RequestException:
+                        _empty("Forecasting requires historical frequency data.")
+        except requests.RequestException:
+            _empty("Keyword data unavailable.")
 
-    st.divider()
+    st.markdown("---")
 
     # Link Analysis Graph
-    st.markdown("### Link Analysis Graph")
+    st.markdown("**Link Analysis Network**")
     try:
-        graph_data = _get(
-            "/analytics/graph",
-            params={"days": 7, "min_score": 60, "limit_alerts": 200},
-        )
+        graph_data = fetch_graph_data(days=14, min_score=40, limit=200)
         nodes = graph_data.get("nodes", [])
         edges = graph_data.get("edges", [])
 
         if nodes:
-            # Group by type and assign positions (column layout)
             type_groups = {}
-            for node in nodes[:50]:
+            for node in nodes[:60]:
                 base_type = node["type"].split(":")[0]
                 type_groups.setdefault(base_type, []).append(node)
 
-            x_pos = {
-                "source": 0, "keyword": 1, "ioc": 2, "entity": 2,
-            }
-            type_colors = {
-                "source": "#0f4c81", "keyword": "#c2410c",
-                "ioc": "#6b21a8", "entity": "#1d7a46",
-            }
+            x_pos = {"source": 0, "keyword": 1, "ioc": 2, "entity": 2}
+            type_colors = {"source": "#3b82f6", "keyword": "#f97316", "ioc": "#8b5cf6", "entity": "#22c55e"}
             positions = {}
             for ntype, group in type_groups.items():
                 x = x_pos.get(ntype, 1.5)
@@ -1334,288 +1041,272 @@ with tabs[7]:
                     positions[node["id"]] = (x + jitter, y)
 
             fig = go.Figure()
-
-            # Edges
             edge_x, edge_y = [], []
-            for edge in edges[:100]:
-                src = edge["source"]
-                tgt = edge["target"]
+            for edge in edges[:120]:
+                src, tgt = edge["source"], edge["target"]
                 if src in positions and tgt in positions:
                     x0, y0 = positions[src]
                     x1, y1 = positions[tgt]
                     edge_x.extend([x0, x1, None])
                     edge_y.extend([y0, y1, None])
             if edge_x:
-                fig.add_trace(
-                    go.Scatter(
-                        x=edge_x, y=edge_y, mode="lines",
-                        line=dict(width=0.5, color="#cbd5e1"),
-                        hoverinfo="none", showlegend=False,
-                    )
-                )
-
-            # Nodes
+                fig.add_trace(go.Scatter(
+                    x=edge_x, y=edge_y, mode="lines",
+                    line=dict(width=0.4, color="rgba(59,130,246,0.15)"),
+                    hoverinfo="none", showlegend=False,
+                ))
             for ntype, group in type_groups.items():
                 valid = [n for n in group if n["id"] in positions]
-                xs = [positions[n["id"]][0] for n in valid]
-                ys = [positions[n["id"]][1] for n in valid]
-                labels = [n["label"] for n in valid]
-                sizes = [
-                    max(8, min(25, n["weight"] / 10)) for n in valid
-                ]
-                fig.add_trace(
-                    go.Scatter(
-                        x=xs, y=ys, mode="markers+text",
-                        text=labels, textposition="top center",
-                        textfont=dict(size=9),
-                        marker=dict(
-                            size=sizes,
-                            color=type_colors.get(ntype, "#64748b"),
-                        ),
-                        name=ntype.title(),
-                    )
-                )
-
+                if not valid:
+                    continue
+                fig.add_trace(go.Scatter(
+                    x=[positions[n["id"]][0] for n in valid],
+                    y=[positions[n["id"]][1] for n in valid],
+                    mode="markers+text",
+                    text=[n["label"] for n in valid], textposition="top center",
+                    textfont=dict(size=9, color="#94a3b8"),
+                    marker=dict(
+                        size=[max(8, min(25, n["weight"] / 10)) for n in valid],
+                        color=type_colors.get(ntype, "#64748b"),
+                    ),
+                    name=ntype.title(),
+                ))
             fig.update_layout(
                 height=500,
-                xaxis=dict(
-                    showgrid=False, zeroline=False, showticklabels=False
-                ),
-                yaxis=dict(
-                    showgrid=False, zeroline=False, showticklabels=False
-                ),
-                title="Alert-Keyword-Entity Relationship Graph",
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
             )
             _style(fig, 500)
             st.plotly_chart(fig, use_container_width=True)
-            st.caption(
-                f"{len(nodes)} nodes, {len(edges)} edges "
-                f"(top 50 nodes shown)"
-            )
+            st.caption(f"{len(nodes)} nodes, {len(edges)} edges (top 60 nodes shown)")
         else:
-            st.info(
-                "No graph data available. High-risk alerts with entities "
-                "are needed."
-            )
-    except Exception:
-        st.info("Link analysis requires scored alerts with extracted entities.")
+            _empty("Link analysis requires scored alerts with extracted entities.", "\U0001F517")
+    except requests.RequestException:
+        _empty("Link analysis data unavailable.", "\U0001F517")
 
-    st.divider()
+    st.markdown("---")
 
-    # Source Credibility
-    st.markdown("### Source Credibility (Bayesian-Updated)")
-    try:
-        sources = _get("/sources")
-        if sources:
-            src_df = pd.DataFrame(sources)
-            if "credibility_score" in src_df.columns:
-                src_df = src_df.sort_values(
-                    "credibility_score", ascending=True
-                )
-                fig = px.bar(
-                    src_df, x="credibility_score", y="name",
-                    orientation="h",
-                    color="credibility_score",
-                    color_continuous_scale="Blues",
-                    labels={
-                        "credibility_score": "Credibility",
-                        "name": "Source",
-                    },
-                    title="Intelligence Source Credibility",
-                )
-                _style(fig, 350)
-                st.plotly_chart(fig, use_container_width=True)
-    except Exception:
-        pass
+    # Source Credibility + Model Backtest
+    col_cred, col_bt = st.columns(2)
 
-    st.divider()
-
-    # Model Backtest
-    st.markdown("### Scoring Model Backtest")
-    try:
-        backtest = _get("/analytics/backtest")
-        if backtest and backtest.get("cases"):
-            bt1, bt2, bt3 = st.columns(3)
-            bt1.metric(
-                "Multi-factor Accuracy",
-                f"{backtest.get('multifactor_accuracy', 0):.1%}",
-            )
-            bt2.metric(
-                "Naive Baseline",
-                f"{backtest.get('naive_accuracy', 0):.1%}",
-            )
-            bt3.metric(
-                "Improvement",
-                f"{backtest.get('improvement', 0):.1%}",
-            )
-            bt_df = pd.DataFrame(backtest["cases"])
-            cols = [
-                c
-                for c in [
-                    "title", "expected_severity",
-                    "predicted_severity", "score", "correct",
-                ]
-                if c in bt_df.columns
-            ]
-            if cols:
-                st.dataframe(
-                    bt_df[cols],
-                    use_container_width=True,
-                    hide_index=True,
-                )
-    except Exception:
-        st.info("Backtest requires golden dataset cases in tests/.")
-
-
-# ============================================================
-# TAB 9: CONFIGURATION
-# ============================================================
-with tabs[8]:
-    st.subheader("Configuration")
-
-    # Keyword Management
-    st.markdown("### Keyword Management")
-    with st.form("add_keyword"):
-        kc1, kc2, kc3 = st.columns(3)
-        new_term = kc1.text_input("New Keyword")
-        new_cat = kc2.selectbox(
-            "Category",
-            [
-                "protective_intel",
-                "travel_risk",
-                "protest_disruption",
-                "insider_workplace",
-                "general",
-            ],
-        )
-        new_weight = kc3.slider("Threat Weight", 0.1, 5.0, 1.0, 0.1)
-        if st.form_submit_button("Add Keyword") and new_term:
-            try:
-                _post(
-                    "/keywords",
-                    payload={
-                        "term": new_term,
-                        "category": new_cat,
-                        "weight": new_weight,
-                    },
-                )
-                st.success(f"Added: {new_term}")
-                st.rerun()
-            except Exception:
-                st.error("Keyword already exists or error occurred.")
-
-    try:
-        keywords = _get("/keywords")
-        if keywords:
-            kw_df = pd.DataFrame(keywords)
-            cols = [
-                c
-                for c in ["id", "term", "category", "weight", "active"]
-                if c in kw_df.columns
-            ]
-            st.dataframe(
-                kw_df[cols], use_container_width=True, hide_index=True
-            )
-    except Exception:
-        pass
-
-    st.divider()
-
-    # Protected Locations
-    st.markdown("### Protected Locations")
-    try:
-        locations = _get("/locations/protected")
-        if locations:
-            loc_df = pd.DataFrame(locations)
-            cols = [
-                c
-                for c in ["name", "type", "lat", "lon", "radius_miles"]
-                if c in loc_df.columns
-            ]
-            st.dataframe(
-                loc_df[cols], use_container_width=True, hide_index=True
-            )
-    except Exception:
-        pass
-
-    st.markdown("#### Add Protected Location")
-    with st.form("add_location"):
-        lc1, lc2, lc3 = st.columns(3)
-        loc_name = lc1.text_input("Location Name")
-        loc_type = lc2.selectbox(
-            "Type", ["hq", "office", "residence", "venue", "other"]
-        )
-        loc_radius = lc3.slider("Radius (miles)", 1.0, 50.0, 5.0, 1.0)
-        lc4, lc5 = st.columns(2)
-        loc_lat = lc4.number_input("Latitude", value=0.0, format="%.6f")
-        loc_lon = lc5.number_input("Longitude", value=0.0, format="%.6f")
-        if st.form_submit_button("Add Location") and loc_name:
-            try:
-                _post(
-                    "/locations/protected",
-                    payload={
-                        "name": loc_name,
-                        "type": loc_type,
-                        "lat": loc_lat if loc_lat != 0 else None,
-                        "lon": loc_lon if loc_lon != 0 else None,
-                        "radius_miles": loc_radius,
-                    },
-                )
-                st.success(f"Added: {loc_name}")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-    st.divider()
-
-    # Source Credibility
-    st.markdown("### Source Credibility")
-    try:
-        sources = _get("/sources")
-        if sources:
-            for src in sources:
-                cred = src.get("credibility_score", 0.5)
-                tp = src.get("true_positives", 0)
-                fp = src.get("false_positives", 0)
-                st.write(
-                    f"**{src['name']}** ({src['source_type']}) -- "
-                    f"Credibility: {cred:.2f} | TP: {tp} | FP: {fp}"
-                )
-    except Exception:
-        pass
-
-    st.divider()
-
-    # Escalation Tiers
-    st.markdown("### Escalation Tiers")
-    try:
-        tiers_data = _get("/analytics/escalation-tiers")
-        for tier in tiers_data.get("tiers", []):
-            label = tier["label"]
-            css = f"tier-{label.lower()}"
-            notify = ", ".join(tier.get("notify", [])) or "None"
-            st.markdown(
-                f'<span class="tier-badge {css}">{label}</span> '
-                f'Score {tier["threshold"]}+ -- '
-                f'{tier.get("action", "N/A")} | '
-                f'Window: {tier.get("response_window", "N/A")} | '
-                f'Notify: {notify}',
-                unsafe_allow_html=True,
-            )
-    except Exception:
-        pass
-
-    st.divider()
-
-    # Rescore
-    st.markdown("### Re-score Alerts")
-    st.write(
-        "Recalculate ORS/TAS for all unreviewed alerts using current "
-        "keyword weights, source credibility, and proximity factors."
-    )
-    if st.button("Re-score All Unreviewed Alerts"):
+    with col_cred:
+        st.markdown("**Source Credibility (Bayesian)**")
         try:
-            result = _post("/alerts/rescore")
-            st.success(f"Rescored {result['alerts_rescored']} alerts.")
-        except Exception as e:
-            st.error(f"Error: {e}")
+            sources = fetch_sources()
+            if sources:
+                src_df = pd.DataFrame(sources)
+                if "credibility_score" in src_df.columns:
+                    src_df = src_df.sort_values("credibility_score", ascending=True)
+                    fig = px.bar(
+                        src_df, x="credibility_score", y="name", orientation="h",
+                        color="credibility_score",
+                        color_continuous_scale=[[0, "#ef4444"], [0.5, "#eab308"], [1, "#22c55e"]],
+                        range_color=[0, 1],
+                        labels={"credibility_score": "Credibility", "name": "Source"},
+                    )
+                    _style(fig, 320)
+                    st.plotly_chart(fig, use_container_width=True)
+        except requests.RequestException:
+            _empty("Source data unavailable.")
+
+    with col_bt:
+        st.markdown("**Scoring Model Backtest**")
+        try:
+            backtest = _get("/analytics/backtest")
+            if backtest and backtest.get("cases"):
+                bt1, bt2, bt3 = st.columns(3)
+                bt1.metric("Multi-factor", f"{backtest.get('multifactor_accuracy', 0):.1%}")
+                bt2.metric("Naive Baseline", f"{backtest.get('naive_accuracy', 0):.1%}")
+                bt3.metric("Improvement", f"{backtest.get('improvement', 0):.1%}")
+                bt_df = pd.DataFrame(backtest["cases"])
+                cols = [c for c in ["title", "expected_severity", "predicted_severity", "score", "correct"] if c in bt_df.columns]
+                if cols:
+                    st.dataframe(bt_df[cols], use_container_width=True, hide_index=True)
+            else:
+                _empty("Backtest requires golden dataset cases.")
+        except requests.RequestException:
+            _empty("Backtest data unavailable.")
+
+
+# ============================================================
+# TAB 5: ADMINISTRATION
+# ============================================================
+with tabs[4]:
+    st.markdown("##### System Administration")
+
+    admin1, admin2 = st.columns(2)
+
+    # --- Keyword Management ---
+    with admin1:
+        st.markdown("**Keyword Management**")
+        with st.form("add_keyword"):
+            kc1, kc2 = st.columns(2)
+            new_term = kc1.text_input("New Keyword")
+            new_cat = kc2.selectbox("Category", ["protective_intel", "travel_risk", "protest_disruption", "insider_workplace", "general"])
+            new_weight = st.slider("Threat Weight", 0.1, 5.0, 1.0, 0.1, key="kw_weight")
+            if st.form_submit_button("Add Keyword") and new_term:
+                try:
+                    _post("/keywords", payload={"term": new_term, "category": new_cat, "weight": new_weight})
+                    st.success(f"Added: {new_term}")
+                    st.cache_data.clear()
+                    st.rerun()
+                except requests.RequestException:
+                    st.error("Keyword exists or error occurred.")
+
+        try:
+            keywords = fetch_keywords()
+            if keywords:
+                kw_df = pd.DataFrame(keywords)
+                cols = [c for c in ["id", "term", "category", "weight", "active"] if c in kw_df.columns]
+                st.dataframe(kw_df[cols], use_container_width=True, hide_index=True)
+        except requests.RequestException:
+            st.caption("Keyword table unavailable.")
+
+    # --- Protected Locations ---
+    with admin2:
+        st.markdown("**Protected Locations**")
+        try:
+            locations = fetch_locations()
+            if locations:
+                loc_df = pd.DataFrame(locations)
+                cols = [c for c in ["name", "type", "lat", "lon", "radius_miles"] if c in loc_df.columns]
+                st.dataframe(loc_df[cols], use_container_width=True, hide_index=True)
+        except requests.RequestException:
+            st.caption("Protected locations unavailable.")
+
+        st.markdown("**Add Location**")
+        with st.form("add_location"):
+            lc1, lc2 = st.columns(2)
+            loc_name = lc1.text_input("Name")
+            loc_type = lc2.selectbox("Type", ["hq", "office", "residence", "venue", "other"])
+            use_coords = st.checkbox("Provide Coordinates", value=False)
+            lc3, lc4, lc5 = st.columns(3)
+            loc_lat = lc3.number_input("Lat", value=0.0, format="%.6f", disabled=not use_coords)
+            loc_lon = lc4.number_input("Lon", value=0.0, format="%.6f", disabled=not use_coords)
+            loc_radius = lc5.slider("Radius (mi)", 1.0, 50.0, 5.0, 1.0)
+            if st.form_submit_button("Add Location") and loc_name:
+                try:
+                    _post("/locations/protected", payload={
+                        "name": loc_name, "type": loc_type,
+                        "lat": loc_lat if use_coords else None,
+                        "lon": loc_lon if use_coords else None,
+                        "radius_miles": loc_radius,
+                    })
+                    st.success(f"Added: {loc_name}")
+                    st.cache_data.clear()
+                    st.rerun()
+                except requests.RequestException as e:
+                    st.error(f"Error: {e}")
+
+    st.markdown("---")
+
+    admin3, admin4 = st.columns(2)
+
+    # --- Register Protectee ---
+    with admin3:
+        st.markdown("**Register New Protectee**")
+        with st.form("add_poi"):
+            pc1, pc2 = st.columns(2)
+            poi_name = pc1.text_input("Name")
+            poi_org = pc2.text_input("Organization")
+            pc3, pc4 = st.columns(2)
+            poi_role = pc3.text_input("Role")
+            poi_sens = pc4.slider("Sensitivity", 1, 5, 3)
+            poi_aliases = st.text_input("Aliases (comma-separated)")
+            if st.form_submit_button("Register Protectee") and poi_name:
+                alias_list = [a.strip() for a in poi_aliases.split(",") if a.strip()] if poi_aliases else []
+                try:
+                    _post("/pois", payload={"name": poi_name, "org": poi_org, "role": poi_role, "sensitivity": poi_sens, "aliases": alias_list})
+                    st.success(f"Registered: {poi_name}")
+                    st.cache_data.clear()
+                    st.rerun()
+                except requests.RequestException as e:
+                    st.error(f"Error: {e}")
+
+    # --- Register Threat Subject ---
+    with admin4:
+        st.markdown("**Register New Threat Subject**")
+        with st.form("add_subject"):
+            ts1, ts2 = st.columns(2)
+            ts_name = ts1.text_input("Subject Name")
+            ts_aliases = ts2.text_input("Aliases (comma-separated)")
+            try:
+                poi_list = fetch_pois()
+                poi_opts = {"None": None}
+                poi_opts.update({p["name"]: p["id"] for p in poi_list})
+                linked_poi = st.selectbox("Link to Protectee", list(poi_opts.keys()))
+            except requests.RequestException:
+                linked_poi = "None"
+                poi_opts = {"None": None}
+            ts_notes = st.text_input("Notes")
+            if st.form_submit_button("Register Subject") and ts_name:
+                alias_list = [a.strip() for a in ts_aliases.split(",") if a.strip()] if ts_aliases else []
+                try:
+                    _post("/threat-subjects", payload={
+                        "name": ts_name, "aliases": alias_list,
+                        "linked_poi_id": poi_opts[linked_poi], "notes": ts_notes,
+                    })
+                    st.success(f"Registered: {ts_name}")
+                    st.cache_data.clear()
+                    st.rerun()
+                except requests.RequestException as e:
+                    st.error(f"Error: {e}")
+
+    st.markdown("---")
+
+    # --- Source Credibility + Escalation Tiers + Rescore ---
+    admin5, admin6 = st.columns(2)
+
+    with admin5:
+        st.markdown("**Source Credibility**")
+        try:
+            sources = fetch_sources()
+            if sources:
+                for src in sources:
+                    cred = src.get("credibility_score", 0.5)
+                    tp = src.get("true_positives", 0)
+                    fp = src.get("false_positives", 0)
+                    bar_w = int(cred * 100)
+                    bar_color = "#22c55e" if cred >= 0.7 else "#eab308" if cred >= 0.4 else "#ef4444"
+                    st.markdown(
+                        f'<div style="margin-bottom:6px;">'
+                        f'<span style="color:{UI_TEXT_PRIMARY};font-size:0.82rem;font-weight:600;">{_esc(src["name"])}</span> '
+                        f'<span style="color:{UI_TEXT_SECONDARY};font-size:0.72rem;">({_esc(src["source_type"])}) TP:{tp} FP:{fp}</span>'
+                        f'<div style="background:#1e293b;border-radius:3px;height:6px;margin-top:3px;">'
+                        f'<div style="background:{bar_color};width:{bar_w}%;height:100%;border-radius:3px;"></div>'
+                        f'</div></div>',
+                        unsafe_allow_html=True,
+                    )
+        except requests.RequestException:
+            st.caption("Source credibility data unavailable.")
+
+    with admin6:
+        st.markdown("**Escalation Tiers**")
+        try:
+            tiers_data = fetch_escalation_tiers()
+            for tier in tiers_data.get("tiers", []):
+                label = tier["label"]
+                notify = ", ".join(tier.get("notify", [])) or "\u2014"
+                st.markdown(
+                    f'{_tier_badge(label)} '
+                    f'<span style="color:{UI_TEXT_SECONDARY};font-size:0.8rem;">'
+                    f'Score {tier["threshold"]}+ \u2022 {_esc(tier.get("response_window", "N/A"))} \u2022 Notify: {_esc(notify)}'
+                    f'</span>',
+                    unsafe_allow_html=True,
+                )
+        except requests.RequestException:
+            st.caption("Escalation tiers unavailable.")
+
+        st.markdown("---")
+        st.markdown("**Re-score Alerts**")
+        st.markdown(
+            f'<span style="color:{UI_TEXT_SECONDARY};font-size:0.82rem;">Recalculate ORS/TAS for all unreviewed alerts.</span>',
+            unsafe_allow_html=True,
+        )
+        if st.button("\U0001F504 Re-score All Unreviewed"):
+            try:
+                result = _post("/alerts/rescore")
+                st.success(f"Rescored {result['alerts_rescored']} alerts.")
+                st.cache_data.clear()
+            except requests.RequestException as e:
+                st.error(f"Error: {e}")

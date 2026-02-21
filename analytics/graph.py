@@ -7,7 +7,7 @@ from database.init_db import get_connection
 IOC_TYPES = {"ipv4", "domain", "url", "cve", "md5", "sha1", "sha256"}
 
 
-def build_graph(days=7, min_score=70.0, limit_alerts=500):
+def build_graph(days=7, min_score=70.0, limit_alerts=500, include_demo=False):
     """
     Build a compact link-analysis graph for high-risk recent alerts.
 
@@ -19,8 +19,11 @@ def build_graph(days=7, min_score=70.0, limit_alerts=500):
     cutoff = (utcnow() - timedelta(days=safe_days)).strftime("%Y-%m-%d %H:%M:%S")
 
     conn = get_connection()
+    demo_filter = ""
+    if not include_demo:
+        demo_filter = " AND COALESCE(s.source_type, '') != 'demo'"
     alerts = conn.execute(
-        """SELECT a.id, a.keyword_id, k.term AS keyword_term,
+        f"""SELECT a.id, a.keyword_id, k.term AS keyword_term,
                   a.source_id, s.name AS source_name, a.risk_score
         FROM alerts a
         JOIN keywords k ON a.keyword_id = k.id
@@ -28,6 +31,7 @@ def build_graph(days=7, min_score=70.0, limit_alerts=500):
         WHERE a.duplicate_of IS NULL
           AND COALESCE(a.published_at, a.created_at) >= ?
           AND a.risk_score >= ?
+          {demo_filter}
         ORDER BY a.risk_score DESC
         LIMIT ?""",
         (cutoff, float(min_score), safe_limit),
