@@ -6,7 +6,7 @@ media fixture ingestion.  Each test targets a single protective-intelligence
 concept so regressions surface with a clear, actionable failure message.
 
 Relies on the ``client`` fixture from conftest.py which stands up a temp DB
-seeded with the default watchlist (Jane Doe, Michael Reyes, Acme HQ, etc.).
+seeded with the default watchlist (Magnificent 7 CEOs, real HQs, etc.).
 """
 
 import json
@@ -65,7 +65,7 @@ def _insert_alert_with_poi_hit(conn, poi_id, title, content="", match_value=None
         """INSERT INTO poi_hits
         (poi_id, alert_id, match_type, match_value, match_score, context)
         VALUES (?, ?, 'exact', ?, 1.0, ?)""",
-        (poi_id, alert_id, match_value or "Jane Doe", title[:80]),
+        (poi_id, alert_id, match_value or "Tim Cook", title[:80]),
     )
     return alert_id
 
@@ -78,40 +78,40 @@ class TestNameDisambiguation:
     """POI matching resolves the correct protectee among similar names."""
 
     def test_exact_match_selects_correct_poi(self, client):
-        """Validate that text mentioning 'Jane Doe' matches the CEO POI and
-        not an unrelated person when multiple POIs exist.
+        """Validate that text mentioning 'Tim Cook' matches the Apple CEO POI
+        and not an unrelated person when multiple POIs exist.
 
         EP concept: In a protective detail, the analyst must be certain that
-        an alert about 'Jane Doe' refers to *the* protectee and not a
+        an alert about 'Tim Cook' refers to *the* protectee and not a
         different individual with a similar or identical name.
         """
         conn = get_connection()
         aliases = get_active_poi_aliases(conn)
         conn.close()
 
-        # Text clearly about the Acme CEO
+        # Text clearly about the Apple CEO
         text = (
-            "Jane Doe, CEO of Acme Corporation, was mentioned in a "
-            "threatening post online. The post referenced her upcoming "
-            "town hall appearance."
+            "Tim Cook, CEO of Apple Inc., was mentioned in a "
+            "threatening post online. The post referenced his upcoming "
+            "WWDC keynote appearance."
         )
         hits = match_pois(text, aliases)
-        assert len(hits) >= 1, "Expected at least one POI hit for 'Jane Doe'"
+        assert len(hits) >= 1, "Expected at least one POI hit for 'Tim Cook'"
 
-        # Every hit for this text must resolve to the Jane Doe POI
-        jane_poi = next(
-            (a for a in aliases if a["poi_name"] == "Jane Doe"),
+        # Every hit for this text must resolve to the Tim Cook POI
+        cook_poi = next(
+            (a for a in aliases if a["poi_name"] == "Tim Cook"),
             None,
         )
-        assert jane_poi is not None
+        assert cook_poi is not None
         for hit in hits:
-            if hit["match_value"].lower() == "jane doe":
-                assert hit["poi_id"] == jane_poi["poi_id"], (
-                    "Jane Doe hit resolved to wrong POI id"
+            if hit["match_value"].lower() == "tim cook":
+                assert hit["poi_id"] == cook_poi["poi_id"], (
+                    "Tim Cook hit resolved to wrong POI id"
                 )
 
     def test_different_poi_not_confused(self, client):
-        """Text mentioning 'Michael Reyes' must not generate a hit for Jane Doe.
+        """Text mentioning 'Satya Nadella' must not generate a hit for Tim Cook.
 
         EP concept: Disambiguation prevents false escalation for the wrong
         protectee.
@@ -120,11 +120,11 @@ class TestNameDisambiguation:
         aliases = get_active_poi_aliases(conn)
         conn.close()
 
-        text = "Michael Reyes reviewed the quarterly security assessment."
+        text = "Satya Nadella reviewed the quarterly security assessment."
         hits = match_pois(text, aliases)
-        jane_hits = [h for h in hits if h["poi_name"] == "Jane Doe"]
-        assert len(jane_hits) == 0, (
-            "Text about Michael Reyes must not produce a Jane Doe hit"
+        cook_hits = [h for h in hits if h["poi_name"] == "Tim Cook"]
+        assert len(cook_hits) == 0, (
+            "Text about Satya Nadella must not produce a Tim Cook hit"
         )
 
 
@@ -133,13 +133,13 @@ class TestNameDisambiguation:
 # ---------------------------------------------------------------------------
 
 class TestAliasMatching:
-    """POI matching via configured aliases (e.g., 'J. Doe' -> 'Jane Doe')."""
+    """POI matching via configured aliases (e.g., 'Timothy D. Cook' -> 'Tim Cook')."""
 
     def test_abbreviated_alias_matches_poi(self, client):
-        """Validate that the alias 'J. Doe' in article text correctly
-        resolves to the protectee 'Jane Doe'.
+        """Validate that the alias 'Timothy D. Cook' in article text correctly
+        resolves to the protectee 'Tim Cook'.
 
-        EP concept: Threat actors and media often use shortened names,
+        EP concept: Threat actors and media often use full legal names,
         initials, or nicknames.  The matching engine must resolve aliases
         to the canonical protectee record so nothing is missed.
         """
@@ -148,43 +148,43 @@ class TestAliasMatching:
         conn.close()
 
         text = (
-            "An anonymous user referenced J. Doe in connection with "
-            "an upcoming corporate event at the Acme headquarters."
+            "An anonymous user referenced Timothy D. Cook in connection with "
+            "an upcoming corporate event at the Apple headquarters."
         )
         hits = match_pois(text, aliases)
-        j_doe_hits = [h for h in hits if h["match_value"] == "J. Doe"]
-        assert len(j_doe_hits) >= 1, (
-            "Expected alias 'J. Doe' to produce a match"
+        cook_alias_hits = [h for h in hits if h["match_value"] == "Timothy D. Cook"]
+        assert len(cook_alias_hits) >= 1, (
+            "Expected alias 'Timothy D. Cook' to produce a match"
         )
-        # The hit must map back to the Jane Doe POI
-        jane_poi_id = next(
-            a["poi_id"] for a in aliases if a["poi_name"] == "Jane Doe"
+        # The hit must map back to the Tim Cook POI
+        cook_poi_id = next(
+            a["poi_id"] for a in aliases if a["poi_name"] == "Tim Cook"
         )
-        for hit in j_doe_hits:
-            assert hit["poi_id"] == jane_poi_id, (
-                "Alias 'J. Doe' resolved to wrong POI"
+        for hit in cook_alias_hits:
+            assert hit["poi_id"] == cook_poi_id, (
+                "Alias 'Timothy D. Cook' resolved to wrong POI"
             )
 
-    def test_mike_reyes_alias(self, client):
-        """Validate that 'Mike Reyes' alias resolves to Michael Reyes POI.
+    def test_jen_hsun_huang_alias(self, client):
+        """Validate that 'Jen-Hsun Huang' alias resolves to Jensen Huang POI.
 
-        EP concept: Informal name variants must still link to the correct
-        protectee for comprehensive coverage.
+        EP concept: Birth names and formal name variants must still link to
+        the correct protectee for comprehensive coverage.
         """
         conn = get_connection()
         aliases = get_active_poi_aliases(conn)
         conn.close()
 
-        text = "Mike Reyes inspected the perimeter before the event."
+        text = "Jen-Hsun Huang inspected the perimeter before the GTC keynote."
         hits = match_pois(text, aliases)
-        mike_hits = [h for h in hits if h["match_value"] == "Mike Reyes"]
-        assert len(mike_hits) >= 1, (
-            "Expected alias 'Mike Reyes' to match Michael Reyes POI"
+        huang_hits = [h for h in hits if h["match_value"] == "Jen-Hsun Huang"]
+        assert len(huang_hits) >= 1, (
+            "Expected alias 'Jen-Hsun Huang' to match Jensen Huang POI"
         )
-        michael_poi_id = next(
-            a["poi_id"] for a in aliases if a["poi_name"] == "Michael Reyes"
+        jensen_poi_id = next(
+            a["poi_id"] for a in aliases if a["poi_name"] == "Jensen Huang"
         )
-        assert mike_hits[0]["poi_id"] == michael_poi_id
+        assert huang_hits[0]["poi_id"] == jensen_poi_id
 
 
 # ---------------------------------------------------------------------------
@@ -194,23 +194,23 @@ class TestAliasMatching:
 class TestProximityCalculation:
     """An alert near a protected location is correctly flagged within radius."""
 
-    def test_alert_within_acme_hq_radius(self, client):
-        """Insert an alert with a geocoded location very close to Acme HQ
-        (37.7749, -122.4194) and verify it is flagged as within_radius.
+    def test_alert_within_apple_park_radius(self, client):
+        """Insert an alert with a geocoded location very close to Apple Park
+        (37.3349, -122.0090) and verify it is flagged as within_radius.
 
         EP concept: Proximity alerts are a core EP signal.  If a threat is
         geolocated within the protective radius of an asset, the detail
         must be notified immediately.
         """
         conn = get_connection()
-        alert_id = _insert_alert(conn, "Bomb threat near Financial District")
+        alert_id = _insert_alert(conn, "Bomb threat near Cupertino campus")
 
-        # Place the alert location ~0.5 miles from Acme HQ (37.7749, -122.4194)
-        nearby_lat, nearby_lon = 37.7755, -122.4180
+        # Place the alert location ~0.3 miles from Apple Park (37.3349, -122.0090)
+        nearby_lat, nearby_lon = 37.3355, -122.0080
         conn.execute(
             """INSERT INTO alert_locations
             (alert_id, location_text, lat, lon, resolver, confidence)
-            VALUES (?, 'Near Financial District', ?, ?, 'test', 0.95)""",
+            VALUES (?, 'Near Apple Park', ?, ?, 'test', 0.95)""",
             (alert_id, nearby_lat, nearby_lon),
         )
 
@@ -225,13 +225,13 @@ class TestProximityCalculation:
         conn.close()
 
         assert len(prox) >= 1, "Expected at least one proximity record"
-        # Find the Acme HQ proximity row
+        # Find the Apple Park proximity row
         hq_prox = [
             dict(r) for r in prox
             if r["distance_miles"] is not None and r["distance_miles"] < 1.0
         ]
         assert len(hq_prox) >= 1, (
-            "Expected alert to be within 1 mile of Acme HQ"
+            "Expected alert to be within 1 mile of Apple Park"
         )
         assert hq_prox[0]["within_radius"] == 1, (
             "Alert within radius should be flagged within_radius=1"
@@ -245,7 +245,7 @@ class TestProximityCalculation:
         conn = get_connection()
         alert_id = _insert_alert(conn, "Unrelated event in remote location")
 
-        # Place the alert in a location very far from both Acme HQ and NYC
+        # Place the alert in a location very far from all protected HQs
         conn.execute(
             """INSERT INTO alert_locations
             (alert_id, location_text, lat, lon, resolver, confidence)
@@ -284,8 +284,8 @@ class TestTASScoring:
         signals in the assessment window.
         """
         conn = get_connection()
-        poi = conn.execute("SELECT id FROM pois WHERE name = 'Jane Doe'").fetchone()
-        assert poi is not None, "Seed POI 'Jane Doe' must exist"
+        poi = conn.execute("SELECT id FROM pois WHERE name = 'Tim Cook'").fetchone()
+        assert poi is not None, "Seed POI 'Tim Cook' must exist"
         poi_id = poi["id"]
 
         # No alerts or poi_hits inserted -> assessment should return None
@@ -305,7 +305,7 @@ class TestTASScoring:
         without raising errors.
         """
         conn = get_connection()
-        poi = conn.execute("SELECT id FROM pois WHERE name = 'Jane Doe'").fetchone()
+        poi = conn.execute("SELECT id FROM pois WHERE name = 'Tim Cook'").fetchone()
         conn.close()
 
         response = client.get(
@@ -595,7 +595,7 @@ class TestSITREPGeneration:
         actions, and escalation tier.
         """
         conn = get_connection()
-        poi = conn.execute("SELECT * FROM pois WHERE name = 'Jane Doe'").fetchone()
+        poi = conn.execute("SELECT * FROM pois WHERE name = 'Tim Cook'").fetchone()
         assert poi is not None
         poi_id = poi["id"]
 
@@ -608,8 +608,8 @@ class TestSITREPGeneration:
         for i in range(3):
             alert_id = _insert_alert(
                 conn,
-                f"Threat #{i} against Jane Doe - plan to attack tomorrow at HQ entrance",
-                content=f"Jane Doe will pay. Going to the route near HQ. weapon ready. day {i}.",
+                f"Threat #{i} against Tim Cook - plan to attack tomorrow at Apple Park entrance",
+                content=f"Tim Cook will pay. Going to the route near Apple Park. weapon ready. day {i}.",
                 source_id=source_id,
                 keyword_id=keyword_id,
             )
@@ -621,8 +621,8 @@ class TestSITREPGeneration:
             conn.execute(
                 """INSERT INTO poi_hits
                 (poi_id, alert_id, match_type, match_value, match_score, context)
-                VALUES (?, ?, 'exact', 'Jane Doe', 1.0, ?)""",
-                (poi_id, alert_id, f"Threat #{i} against Jane Doe"),
+                VALUES (?, ?, 'exact', 'Tim Cook', 1.0, ?)""",
+                (poi_id, alert_id, f"Threat #{i} against Tim Cook"),
             )
         conn.commit()
 
@@ -841,14 +841,14 @@ class TestEscalationExplanation:
         the analyst a single-request intelligence product.
         """
         conn = get_connection()
-        poi = conn.execute("SELECT id FROM pois WHERE name = 'Jane Doe'").fetchone()
+        poi = conn.execute("SELECT id FROM pois WHERE name = 'Tim Cook'").fetchone()
         poi_id = poi["id"]
 
         # Seed alert data for the POI
         alert_id = _insert_alert(
             conn,
-            "Follow-up threat referencing Jane Doe schedule and route tomorrow",
-            content="Jane Doe weapon plan to entrance route badge",
+            "Follow-up threat referencing Tim Cook schedule and route tomorrow",
+            content="Tim Cook weapon plan to Apple Park entrance route badge",
         )
         conn.execute(
             "UPDATE alerts SET published_at = datetime('now', '-1 day') WHERE id = ?",
@@ -857,7 +857,7 @@ class TestEscalationExplanation:
         conn.execute(
             """INSERT INTO poi_hits
             (poi_id, alert_id, match_type, match_value, match_score, context)
-            VALUES (?, ?, 'exact', 'Jane Doe', 1.0, 'threat context')""",
+            VALUES (?, ?, 'exact', 'Tim Cook', 1.0, 'threat context')""",
             (poi_id, alert_id),
         )
         conn.commit()

@@ -102,6 +102,189 @@ sources:
     - name: "Pastebin Archive"
       url: "https://pastebin.com/archive"
 
+# -----------------------------------------------------------------------
+# Protectees (Magnificent 7 CEOs)
+# -----------------------------------------------------------------------
+pois:
+  - name: "Tim Cook"
+    org: "Apple Inc."
+    role: "Chief Executive Officer"
+    sensitivity: 5
+    aliases: ["Tim Cook", "Timothy D. Cook", "Timothy Cook"]
+  - name: "Satya Nadella"
+    org: "Microsoft Corporation"
+    role: "Chairman & Chief Executive Officer"
+    sensitivity: 5
+    aliases: ["Satya Nadella", "Satya N. Nadella"]
+  - name: "Sundar Pichai"
+    org: "Alphabet Inc."
+    role: "Chief Executive Officer"
+    sensitivity: 5
+    aliases: ["Sundar Pichai", "Pichai Sundararajan"]
+  - name: "Andy Jassy"
+    org: "Amazon.com Inc."
+    role: "President & Chief Executive Officer"
+    sensitivity: 5
+    aliases: ["Andy Jassy", "Andrew R. Jassy", "Andrew Jassy"]
+  - name: "Jensen Huang"
+    org: "NVIDIA Corporation"
+    role: "Founder & Chief Executive Officer"
+    sensitivity: 5
+    aliases: ["Jensen Huang", "Jen-Hsun Huang"]
+  - name: "Mark Zuckerberg"
+    org: "Meta Platforms Inc."
+    role: "Founder, Chairman & Chief Executive Officer"
+    sensitivity: 5
+    aliases: ["Mark Zuckerberg", "Mark E. Zuckerberg", "Zuckerberg"]
+  - name: "Elon Musk"
+    org: "Tesla Inc."
+    role: "Chief Executive Officer"
+    sensitivity: 5
+    aliases: ["Elon Musk", "Elon R. Musk", "Musk"]
+
+# -----------------------------------------------------------------------
+# Protected locations (corporate HQs & key facilities)
+# -----------------------------------------------------------------------
+protected_locations:
+  - name: "Apple Park"
+    type: "hq"
+    lat: 37.3349
+    lon: -122.0090
+    radius_miles: 5
+    notes: "Apple Inc. global headquarters, Cupertino CA"
+  - name: "Microsoft Campus"
+    type: "hq"
+    lat: 47.6405
+    lon: -122.1298
+    radius_miles: 5
+    notes: "Microsoft Corporation headquarters, Redmond WA"
+  - name: "Googleplex"
+    type: "hq"
+    lat: 37.4220
+    lon: -122.0841
+    radius_miles: 5
+    notes: "Alphabet/Google headquarters, Mountain View CA"
+  - name: "Amazon HQ (Day 1)"
+    type: "hq"
+    lat: 47.6152
+    lon: -122.3390
+    radius_miles: 5
+    notes: "Amazon.com headquarters, Seattle WA"
+  - name: "Amazon HQ2"
+    type: "office"
+    lat: 38.8816
+    lon: -77.1013
+    radius_miles: 5
+    notes: "Amazon second headquarters, Arlington VA"
+  - name: "NVIDIA HQ"
+    type: "hq"
+    lat: 37.3708
+    lon: -121.9630
+    radius_miles: 5
+    notes: "NVIDIA Corporation headquarters, Santa Clara CA"
+  - name: "Meta HQ (MPK)"
+    type: "hq"
+    lat: 37.4848
+    lon: -122.1484
+    radius_miles: 5
+    notes: "Meta Platforms headquarters, Menlo Park CA"
+  - name: "Tesla HQ (Gigafactory Texas)"
+    type: "hq"
+    lat: 30.2234
+    lon: -97.6168
+    radius_miles: 8
+    notes: "Tesla Inc. headquarters & Gigafactory, Austin TX"
+  - name: "SpaceX Starbase"
+    type: "facility"
+    lat: 25.9971
+    lon: -97.1550
+    radius_miles: 10
+    notes: "SpaceX launch facility, Boca Chica TX (Musk travel)"
+
+# -----------------------------------------------------------------------
+# Upcoming events
+# -----------------------------------------------------------------------
+events:
+  - name: "Apple WWDC 2026"
+    type: "corporate_event"
+    start_dt: "2026-06-08 10:00:00"
+    end_dt: "2026-06-12 18:00:00"
+    city: "Cupertino"
+    country: "US"
+    venue: "Apple Park"
+    lat: 37.3349
+    lon: -122.0090
+    poi_name: "Tim Cook"
+    notes: "Annual developer conference; keynote high-profile"
+  - name: "Microsoft Build 2026"
+    type: "corporate_event"
+    start_dt: "2026-05-19 09:00:00"
+    end_dt: "2026-05-21 17:00:00"
+    city: "Seattle"
+    country: "US"
+    venue: "Seattle Convention Center"
+    lat: 47.6117
+    lon: -122.3321
+    poi_name: "Satya Nadella"
+    notes: "Annual developer conference"
+  - name: "Google I/O 2026"
+    type: "corporate_event"
+    start_dt: "2026-05-12 10:00:00"
+    end_dt: "2026-05-14 17:00:00"
+    city: "Mountain View"
+    country: "US"
+    venue: "Shoreline Amphitheatre"
+    lat: 37.4267
+    lon: -122.0806
+    poi_name: "Sundar Pichai"
+    notes: "Annual developer conference; outdoor venue"
+  - name: "NVIDIA GTC 2026"
+    type: "corporate_event"
+    start_dt: "2026-03-17 09:00:00"
+    end_dt: "2026-03-20 17:00:00"
+    city: "San Jose"
+    country: "US"
+    venue: "San Jose Convention Center"
+    lat: 37.3302
+    lon: -121.8889
+    poi_name: "Jensen Huang"
+    notes: "GPU Technology Conference; Jensen keynote"
+  - name: "Meta Connect 2026"
+    type: "corporate_event"
+    start_dt: "2026-09-23 10:00:00"
+    end_dt: "2026-09-24 17:00:00"
+    city: "Menlo Park"
+    country: "US"
+    venue: "Meta HQ (MPK)"
+    lat: 37.4848
+    lon: -122.1484
+    poi_name: "Mark Zuckerberg"
+    notes: "Annual hardware/VR event"
+  - name: "Tesla Annual Shareholder Meeting 2026"
+    type: "corporate_event"
+    start_dt: "2026-06-15 14:00:00"
+    end_dt: "2026-06-15 18:00:00"
+    city: "Austin"
+    country: "US"
+    venue: "Tesla HQ (Gigafactory Texas)"
+    lat: 30.2234
+    lon: -97.6168
+    poi_name: "Elon Musk"
+    notes: "Annual meeting; high public interest; protest risk"
+  - name: "World Economic Forum Davos 2027"
+    type: "international_summit"
+    start_dt: "2027-01-19 08:00:00"
+    end_dt: "2027-01-23 18:00:00"
+    city: "Davos"
+    country: "CH"
+    venue: "Congress Centre Davos"
+    lat: 46.8027
+    lon: 9.8360
+    notes: "Multiple protectees may attend; elevated travel risk"
+
+# -----------------------------------------------------------------------
+# Escalation tiers
+# -----------------------------------------------------------------------
 escalation_tiers:
   - threshold: 85
     label: "CRITICAL"

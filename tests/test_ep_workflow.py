@@ -27,8 +27,8 @@ def test_alert_score_includes_ors_and_tas(client):
         (
             source_id,
             keyword_id,
-            "Threat to CEO near Acme HQ",
-            "A death threat to CEO was posted near Acme HQ in San Francisco, CA tomorrow.",
+            "Threat to CEO near Apple Park",
+            "A death threat to CEO was posted near Apple Park in Cupertino, CA tomorrow.",
             "https://example.com/ep-score",
             "threat to CEO",
             "low",
@@ -40,13 +40,13 @@ def test_alert_score_includes_ors_and_tas(client):
     extract_and_store_alert_entities(
         conn,
         alert_id,
-        "Threat to CEO near Acme HQ in San Francisco, CA tomorrow",
+        "Threat to CEO near Apple Park in Cupertino, CA tomorrow",
     )
     process_ep_signals(
         conn,
         alert_id=alert_id,
-        title="Threat to CEO near Acme HQ",
-        content="A death threat to CEO was posted near Acme HQ in San Francisco, CA tomorrow.",
+        title="Threat to CEO near Apple Park",
+        content="A death threat to CEO was posted near Apple Park in Cupertino, CA tomorrow.",
         keyword_category="protective_intel",
         baseline_score=baseline,
     )
