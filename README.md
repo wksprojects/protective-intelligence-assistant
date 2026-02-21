@@ -1,4 +1,4 @@
-# OSINT Threat Monitor → Protective Intelligence Assistant
+# Protective Intelligence Assistant
 
 A **Protective Intelligence / Executive Protection** analyst-assistance platform.
 Ingests open-source intelligence, scores alerts against protectee/facility context,
