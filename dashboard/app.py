@@ -7,6 +7,45 @@ import requests
 import streamlit as st
 
 API_URL = (os.getenv("PI_API_URL") or os.getenv("OSINT_API_URL") or "http://localhost:8000").rstrip("/")
+API_KEY = (os.getenv("PI_API_KEY") or os.getenv("OSINT_API_KEY") or "").strip()
+
+
+def _auth_headers():
+    if not API_KEY:
+        return {}
+    return {"X-API-Key": API_KEY}
+
+
+def _api_get(path, params=None, timeout=20):
+    resp = requests.get(
+        f"{API_URL}{path}",
+        params=params,
+        headers=_auth_headers(),
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _api_post(path, payload=None, timeout=20):
+    resp = requests.post(
+        f"{API_URL}{path}",
+        json=payload,
+        headers=_auth_headers(),
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _api_patch(path, timeout=20):
+    resp = requests.patch(
+        f"{API_URL}{path}",
+        headers=_auth_headers(),
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    return resp.json()
 
 st.set_page_config(
     page_title="OSINT Threat Monitor",
@@ -14,12 +53,12 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🛡️ OSINT Threat Monitor — Cyber Threat Intelligence")
+st.title("🛡️ Protective Intelligence Assistant — Travel Security")
 
 # --- Check API connection ---
 try:
-    requests.get(f"{API_URL}/", timeout=3)
-except requests.ConnectionError:
+    requests.get(f"{API_URL}/", headers=_auth_headers(), timeout=3).raise_for_status()
+except requests.RequestException:
     st.error("Cannot connect to API. Make sure the API server is running on port 8000.")
     st.stop()
 
@@ -46,7 +85,7 @@ SEVERITY_ICONS = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "
 # ============================================================
 with tab_overview:
     try:
-        summary = requests.get(f"{API_URL}/alerts/summary").json()
+        summary = _api_get("/alerts/summary")
 
         # KPI Row
         col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -103,9 +142,7 @@ with tab_overview:
 
         # Risk score distribution
         st.subheader("Risk Score Distribution")
-        alerts_for_dist = requests.get(
-            f"{API_URL}/alerts", params={"limit": 500}
-        ).json()
+        alerts_for_dist = _api_get("/alerts", params={"limit": 500})
         if alerts_for_dist:
             scores = [a["risk_score"] for a in alerts_for_dist if a.get("risk_score")]
             if scores:
@@ -119,8 +156,8 @@ with tab_overview:
                 )
                 st.plotly_chart(fig_hist, use_container_width=True)
 
-    except requests.ConnectionError:
-        st.error("Cannot connect to API.")
+    except requests.RequestException as e:
+        st.error(f"Cannot load overview data: {e}")
 
 
 # ============================================================
@@ -132,10 +169,10 @@ with tab_intel:
     report_date = st.date_input("Report Date", value=date.today())
 
     try:
-        report = requests.get(
-            f"{API_URL}/intelligence/daily",
+        report = _api_get(
+            "/intelligence/daily",
             params={"date": report_date.strftime("%Y-%m-%d")},
-        ).json()
+        )
 
         # Executive Summary
         st.markdown("### Executive Summary")
@@ -217,8 +254,8 @@ with tab_intel:
         else:
             st.info("No threat actor activity detected for this period.")
 
-    except requests.ConnectionError:
-        st.error("Cannot connect to API.")
+    except requests.RequestException as e:
+        st.error(f"Cannot connect to API: {e}")
     except Exception as e:
         st.error(f"Error generating report: {e}")
 
@@ -252,7 +289,7 @@ with tab_alerts:
         params["min_score"] = min_score
 
     try:
-        alerts = requests.get(f"{API_URL}/alerts", params=params).json()
+        alerts = _api_get("/alerts", params=params)
 
         if alerts:
             for alert in alerts:
@@ -277,9 +314,7 @@ with tab_alerts:
 
                     # Score breakdown
                     try:
-                        score_data = requests.get(
-                            f"{API_URL}/alerts/{alert['id']}/score"
-                        ).json()
+                        score_data = _api_get(f"/alerts/{alert['id']}/score")
                         if "keyword_weight" in score_data:
                             st.markdown("**Score Breakdown:**")
                             sc1, sc2, sc3, sc4 = st.columns(4)
@@ -292,25 +327,25 @@ with tab_alerts:
 
                     if not alert["reviewed"]:
                         if st.button("Mark Reviewed", key=f"review_{alert['id']}"):
-                            requests.patch(f"{API_URL}/alerts/{alert['id']}/review")
+                            _api_patch(f"/alerts/{alert['id']}/review")
                             st.rerun()
         else:
             st.info("No alerts found matching your filters.")
 
-    except requests.ConnectionError:
-        st.error("Cannot connect to API.")
+    except requests.RequestException as e:
+        st.error(f"Cannot load alerts: {e}")
 
 
 # ============================================================
 # TAB 4: ANALYTICS
 # ============================================================
 with tab_analytics:
-    st.subheader("Threat Analytics")
+    st.subheader("Risk Analytics")
 
     # Spike Detection
     st.markdown("### Keyword Frequency Spikes")
     try:
-        spikes = requests.get(f"{API_URL}/analytics/spikes", params={"threshold": 1.5}).json()
+        spikes = _api_get("/analytics/spikes", params={"threshold": 1.5})
         if spikes:
             spike_df = pd.DataFrame(spikes)
             fig_spike = px.bar(
@@ -332,15 +367,15 @@ with tab_analytics:
     # Keyword Trend Explorer
     st.markdown("### Keyword Trend Explorer")
     try:
-        keywords = requests.get(f"{API_URL}/keywords").json()
+        keywords = _api_get("/keywords")
         if keywords:
             kw_options = {k["term"]: k["id"] for k in keywords}
             selected_term = st.selectbox("Select Keyword", list(kw_options.keys()))
             if selected_term:
-                trend = requests.get(
-                    f"{API_URL}/analytics/keyword-trend/{kw_options[selected_term]}",
+                trend = _api_get(
+                    f"/analytics/keyword-trend/{kw_options[selected_term]}",
                     params={"days": 14},
-                ).json()
+                )
                 if trend:
                     trend_df = pd.DataFrame(trend)
                     fig_trend = px.line(
@@ -360,7 +395,7 @@ with tab_analytics:
     # Source Credibility Overview
     st.markdown("### Source Credibility Ratings")
     try:
-        sources = requests.get(f"{API_URL}/sources").json()
+        sources = _api_get("/sources")
         if sources:
             source_df = pd.DataFrame(sources)
             if "credibility_score" in source_df.columns:
@@ -393,25 +428,33 @@ with tab_config:
         with kc2:
             new_category = st.selectbox(
                 "Category",
-                ["general", "malware", "incident", "vulnerability", "threat_actor",
-                 "tactics", "financial"],
+                [
+                    "protective_intel",
+                    "travel_risk",
+                    "protest_disruption",
+                    "insider_workplace",
+                    "general",
+                    "threat_actor",
+                    "malware",
+                    "vulnerability",
+                ],
             )
         with kc3:
             new_weight = st.slider("Threat Weight", 0.1, 5.0, 1.0, 0.1)
         submitted = st.form_submit_button("Add Keyword")
         if submitted and new_term:
-            resp = requests.post(
-                f"{API_URL}/keywords",
-                json={"term": new_term, "category": new_category, "weight": new_weight},
-            )
-            if resp.status_code == 200:
+            try:
+                _api_post(
+                    "/keywords",
+                    payload={"term": new_term, "category": new_category, "weight": new_weight},
+                )
                 st.success(f"Added keyword: {new_term} (weight: {new_weight})")
                 st.rerun()
-            else:
+            except requests.RequestException:
                 st.error("Keyword already exists or error occurred.")
 
     try:
-        keywords = requests.get(f"{API_URL}/keywords").json()
+        keywords = _api_get("/keywords")
         if keywords:
             kw_df = pd.DataFrame(keywords)
             display_cols = [c for c in ["id", "term", "category", "weight", "active"] if c in kw_df.columns]
@@ -424,7 +467,7 @@ with tab_config:
     # --- Source Credibility ---
     st.markdown("### Source Credibility")
     try:
-        sources = requests.get(f"{API_URL}/sources").json()
+        sources = _api_get("/sources")
         if sources:
             for src in sources:
                 sc1, sc2 = st.columns([3, 1])
@@ -441,7 +484,7 @@ with tab_config:
     st.write("Re-calculate risk scores for all unreviewed alerts using current keyword weights and source credibility.")
     if st.button("Re-score All Unreviewed Alerts"):
         try:
-            result = requests.post(f"{API_URL}/alerts/rescore").json()
+            result = _api_post("/alerts/rescore")
             st.success(f"Rescored {result['alerts_rescored']} alerts.")
         except Exception as e:
             st.error(f"Error: {e}")
@@ -451,7 +494,7 @@ with tab_config:
     # --- Threat Actors ---
     st.markdown("### Known Threat Actors")
     try:
-        actors = requests.get(f"{API_URL}/threat-actors").json()
+        actors = _api_get("/threat-actors")
         if actors:
             actor_df = pd.DataFrame(actors)
             display_cols = [c for c in ["name", "aliases", "description"] if c in actor_df.columns]

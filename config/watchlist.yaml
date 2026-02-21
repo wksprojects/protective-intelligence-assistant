@@ -1,54 +1,106 @@
 keywords:
-  threat_actors:
-    - "APT"
-    - "threat actor"
-    - "nation state"
-    - "advanced persistent threat"
+  protective_intel:
+    - term: "doxxing"
+      weight: 4.0
+    - term: "swatting"
+      weight: 4.2
+    - term: "stalking"
+      weight: 3.8
+    - term: "hostile surveillance"
+      weight: 4.3
+    - term: "kidnapping"
+      weight: 5.0
+    - term: "bomb threat"
+      weight: 5.0
+    - term: "death threat"
+      weight: 5.0
 
+  travel_risk:
+    - term: "travel advisory"
+      weight: 3.8
+    - term: "curfew"
+      weight: 3.2
+    - term: "civil unrest"
+      weight: 3.4
+    - term: "protest"
+      weight: 2.3
+    - term: "airport disruption"
+      weight: 2.8
+    - term: "border closure"
+      weight: 3.5
+    - term: "outbreak"
+      weight: 3.6
+    - term: "evacuation"
+      weight: 3.7
+
+  protest_disruption:
+    - term: "demonstration"
+      weight: 2.0
+    - term: "march"
+      weight: 1.8
+    - term: "blockade"
+      weight: 2.6
+    - term: "sit-in"
+      weight: 2.2
+
+  insider_workplace:
+    - term: "disgruntled"
+      weight: 3.3
+    - term: "restraining order"
+      weight: 4.1
+    - term: "harassment"
+      weight: 2.5
+    - term: "insider threat"
+      weight: 3.4
+
+  ioc:
+    - term: "CVE"
+      weight: 1.2
+    - term: "ip"
+      weight: 1.1
+    - term: "domain"
+      weight: 1.1
+
+cti_optional:
+  threat_actor:
+    - "APT29"
+    - "APT28"
+    - "advanced persistent threat"
   malware:
     - "ransomware"
     - "malware"
-    - "trojan"
     - "botnet"
-    - "spyware"
-
-  vulnerabilities:
+  vulnerability:
     - "zero day"
-    - "CVE"
-    - "exploitation"
     - "remote code execution"
     - "privilege escalation"
-
   general:
     - "data breach"
     - "credential leak"
     - "phishing"
-    - "DDoS"
-    - "supply chain attack"
-    - "insider threat"
-    - "cryptocurrency fraud"
-    - "dark web"
-    - "critical infrastructure"
-    - "election interference"
 
 sources:
   rss:
+    - name: "State Dept Travel Alerts/Warnings"
+      url: "https://travel.state.gov/_res/rss/TAsTWs.xml"
+    - name: "CDC Travel Health Notices"
+      url: "https://wwwnc.cdc.gov/travel/rss/notices.xml"
+    - name: "WHO Disease Outbreak News"
+      url: "https://www.who.int/feeds/entity/csr/don/en/rss.xml"
+    - name: "GDELT PI/EP Watch"
+      gdelt_query: '("threat to CEO" OR swatting OR doxxing OR "death threat" OR kidnapping OR "bomb threat" OR protest OR unrest) AND (executive OR CEO OR headquarters OR office OR venue)'
+      credibility_score: 0.6
+    - name: "GDELT Travel/Unrest Watch"
+      gdelt_query: '(travel advisory OR curfew OR unrest OR protest OR strike OR airport disruption OR outbreak OR evacuation) AND (city OR airport OR venue OR conference)'
+      credibility_score: 0.6
     - name: "CISA Alerts"
       url: "https://www.cisa.gov/news.xml"
     - name: "Krebs on Security"
       url: "https://krebsonsecurity.com/feed/"
-    - name: "BleepingComputer"
-      url: "https://www.bleepingcomputer.com/feed/"
-    - name: "The Hacker News"
-      url: "https://feeds.feedburner.com/TheHackersNews"
-    - name: "Dark Reading"
-      url: "https://www.darkreading.com/rss.xml"
 
   reddit:
     - name: "r/cybersecurity"
       url: "https://www.reddit.com/r/cybersecurity/.rss"
-    - name: "r/netsec"
-      url: "https://www.reddit.com/r/netsec/.rss"
     - name: "r/threatintel"
       url: "https://www.reddit.com/r/threatintel/.rss"
 
@@ -59,21 +111,21 @@ sources:
 escalation_tiers:
   - threshold: 85
     label: "CRITICAL"
-    notify: ["intel_manager", "soc_lead"]
-    action: "Immediate escalation and analyst review."
+    notify: ["detail_leader", "intel_manager"]
+    action: "Immediate briefing required. Detail leader notified."
     response_window: "30 minutes"
   - threshold: 65
     label: "ELEVATED"
     notify: ["intel_analyst"]
-    action: "High-priority review in current shift."
+    action: "Enhanced monitoring. Assess within 4 hours."
     response_window: "4 hours"
   - threshold: 40
     label: "ROUTINE"
     notify: []
-    action: "Queue for standard triage."
+    action: "Log and monitor. Include in next daily report."
     response_window: "24 hours"
   - threshold: 0
     label: "LOW"
     notify: []
-    action: "Track for trend context."
+    action: "No immediate action. Archive for trend analysis."
     response_window: "N/A"

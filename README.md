@@ -5,7 +5,7 @@ Ingests open-source intelligence, scores alerts against protectee/facility conte
 and produces actionable EP outputs: daily intelligence reports, travel briefs,
 SITREPs, behavioral threat assessments, and escalation recommendations.
 
-> **Lane**: Protective intelligence, corporate security, executive protection.
+> **Lane**: Protective intelligence, travel security, corporate security.
 > The existing CTI pipeline remains available as an optional keyword pack (`cti_optional`),
 > but the headline product is EP.
 
@@ -51,6 +51,10 @@ bash scripts/demo.sh --run   # also starts API + dashboard
 ```bash
 pip install -r requirements.txt
 make init
+```
+If you already have a DB and just updated `config/watchlist.yaml`, run:
+```bash
+make sync
 ```
 
 2. Start API and dashboard in separate terminals.

@@ -1,4 +1,4 @@
-.PHONY: demo init scrape api dashboard test smoke clean help
+.PHONY: demo init sync scrape api dashboard test smoke clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -6,6 +6,9 @@ help: ## Show this help
 
 init: ## Initialize database and seed EP config from watchlist.yaml
 	python run.py init
+
+sync: ## Sync watchlist config into existing database
+	python run.py sync
 
 demo: init ## Full demo: init → load fixtures → generate artifacts → print URLs
 	python run.py demo

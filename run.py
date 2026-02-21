@@ -3,6 +3,7 @@ Protective Intelligence Assistant - Entry Point
 
 Usage:
     python run.py init        Initialize DB and seed from config/watchlist.yaml (fallback defaults)
+    python run.py sync        Sync watchlist-driven defaults into existing DB
     python run.py scrape      Run all scrapers
     python run.py api         Start FastAPI server
     python run.py dashboard   Start Streamlit dashboard
@@ -60,6 +61,16 @@ def main():
             seed_default_events()
         if actor_count == 0:
             seed_threat_actors()
+
+    elif command == "sync":
+        init_db()
+        migrate_schema()
+        seed_default_sources()
+        seed_default_keywords()
+        seed_default_pois()
+        seed_default_protected_locations()
+        seed_default_events()
+        seed_threat_actors()
 
     elif command == "scrape":
         init_db()
