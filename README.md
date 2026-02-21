@@ -8,6 +8,64 @@ SITREPs, behavioral threat assessments, and escalation recommendations.
 > **Lane**: Protective intelligence, travel security, corporate security.
 > All cyber/CTI content has been removed — this is a pure EP platform.
 
+> **Note:** Demo protectees are public-figure CEOs used for realistic context.
+> No actual intelligence collection was performed against these individuals.
+
+---
+
+## Screenshots
+
+| Situation Overview | Alert Triage | Protectee Risk |
+|---|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![Triage](docs/screenshots/triage.png) | ![Risk](docs/screenshots/protectee_risk.png) |
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Sources
+        RSS[State Dept / CDC / WHO]
+        GDELT[GDELT PI-EP Watch]
+        Reddit[Reddit RSS]
+        Paste[Pastebin Archive]
+        ACLED[ACLED &#40;optional&#41;]
+    end
+
+    subgraph Ingestion
+        Scraper[Keyword Match<br/>+ Dedup]
+        Extract[Entity Extraction<br/>+ Geocoding]
+    end
+
+    subgraph Scoring
+        ORS[ORS<br/>Multi-Factor Risk]
+        TAS[TAS<br/>TRAP-Lite Flags]
+        Pathway[Pathway-to-Violence<br/>Behavioral Assessment]
+        MC[Monte Carlo<br/>Uncertainty]
+    end
+
+    subgraph Products
+        Report[Daily Intel Report]
+        Brief[Travel Brief]
+        SITREP[SITREP]
+        Escalation[Escalation Rec]
+    end
+
+    subgraph Stack
+        DB[(SQLite)]
+        API[FastAPI<br/>30+ Endpoints]
+        UI[Streamlit<br/>Dashboard]
+    end
+
+    RSS & GDELT & Reddit & Paste & ACLED --> Scraper
+    Scraper --> Extract --> DB
+    DB --> ORS & TAS & Pathway
+    ORS & TAS & Pathway --> MC --> DB
+    DB --> API --> UI
+    API --> Report & Brief & SITREP & Escalation
+```
+
 ---
 
 ## 3-Minute Demo
@@ -84,7 +142,7 @@ If `PI_REQUIRE_API_KEY=1`, requests are rejected unless `X-API-Key` matches.
 ```bash
 make evaluate
 ```
-Memo output: `docs/evaluation_memo.md`
+Memo output: [`docs/evaluation_memo.md`](docs/evaluation_memo.md)
 
 ---
 
@@ -146,6 +204,20 @@ Longitudinal trend detection: increasing / stable / decreasing.
 Monte Carlo engine in `analytics/uncertainty.py`:
 - ORS intervals: `/alerts/{id}/score?uncertainty=1`
 - TAS intervals: included in `poi_assessments.evidence_json.interval`
+
+### Model Evaluation
+
+Reproducible via `make evaluate` → [`docs/evaluation_memo.md`](docs/evaluation_memo.md).
+
+| Metric | Naive Baseline | Multi-Factor Model |
+|---|---:|---:|
+| Severity Accuracy | 38.5% | **76.9%** |
+| Escalation Precision | 0.667 | **1.000** |
+| Escalation Recall | 0.750 | 0.750 |
+| Escalation F1 | 0.706 | **0.857** |
+| False Positives | 3 | **0** |
+
+Projected time saved: **23.1 analyst-hours per 1,000 triaged alerts**.
 
 ---
 
