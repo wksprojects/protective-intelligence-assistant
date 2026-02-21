@@ -6,16 +6,15 @@ and produces actionable EP outputs: daily intelligence reports, travel briefs,
 SITREPs, behavioral threat assessments, and escalation recommendations.
 
 > **Lane**: Protective intelligence, travel security, corporate security.
-> The existing CTI pipeline remains available as an optional keyword pack (`cti_optional`),
-> but the headline product is EP.
+> All cyber/CTI content has been removed — this is a pure EP platform.
 
 ---
 
 ## 3-Minute Demo
 
 ```bash
-git clone https://github.com/yourorg/osint-threat-monitor.git
-cd osint-threat-monitor
+git clone <repo-url>
+cd protective-intelligence-assistant
 pip install -r requirements.txt
 make demo
 ```
@@ -45,39 +44,34 @@ bash scripts/demo.sh --run   # also starts API + dashboard
 
 ---
 
-## Use It Directly (No Demo)
+## Quick Start (No Demo)
 
-1. Install dependencies and initialize the database.
+1. Install dependencies, initialize the database, and ingest alerts.
 ```bash
 pip install -r requirements.txt
-make init
+make clean && make init && make scrape
 ```
-If you already have a DB and just updated `config/watchlist.yaml`, run:
-```bash
-make sync
-```
-If demo fixtures were loaded previously and you want a clean live view:
-```bash
-make purge-demo
-```
+`make init` seeds the DB from `config/watchlist.yaml` (protectees, locations, keywords, sources).
+`make scrape` pulls live alerts from those sources (State Dept, CDC, WHO, GDELT, Reddit, Pastebin).
 
 2. Start API and dashboard in separate terminals.
 ```bash
 # Terminal 1
-make api
+make api        # http://localhost:8000
 
 # Terminal 2
-make dashboard
+make dashboard  # http://localhost:8501
 ```
 
-3. Run ingestion when you want fresh alerts.
+3. Re-scrape anytime for fresh alerts.
 ```bash
 make scrape
 ```
 
-4. Work from the dashboard and API docs.
-- Dashboard: `http://localhost:8501`
-- API docs (Swagger): `http://localhost:8000/docs`
+4. If you edit `config/watchlist.yaml` without wanting a full reset:
+```bash
+make sync       # upserts config changes into existing DB
+```
 
 5. Optional: enable API auth in non-local environments.
 ```bash
@@ -267,11 +261,10 @@ Main config: `config/watchlist.yaml`
 
 | Section | Purpose |
 |---|---|
-| `keywords` | EP-first taxonomy (protective_intel, protest_disruption, travel_risk, insider_workplace) |
-| `cti_optional` | Cyber terms (available but not headline) |
-| `pois` | Protectees with aliases, org, role, sensitivity |
-| `protected_locations` | Facilities with coordinates and radius |
-| `events` | Scheduled events with POI linkage |
+| `keywords` | EP taxonomy (protective_intel, protest_disruption, travel_risk, insider_workplace) |
+| `pois` | Protectees with aliases, org, role, sensitivity (default: Mag 7 CEOs) |
+| `protected_locations` | Facilities with coordinates and radius (default: Apple Park, Microsoft, Googleplex, etc.) |
+| `events` | Scheduled events with POI linkage (default: WWDC, GTC, Build, etc.) |
 | `sources` | RSS/Reddit/Pastebin feed configuration |
 | `escalation_tiers` | Threshold/notify/action/response_window tiers |
 
@@ -327,8 +320,8 @@ make smoke   # smoke test
 ## Safe Source Policy
 
 **Shipped by default:**
-- RSS (State Dept / CDC / WHO / GDELT PI-EP watch / optional CTI feeds)
-- Reddit RSS
+- RSS (State Dept / CDC / WHO / GDELT PI-EP watch)
+- Reddit RSS (r/OSINT, r/security)
 - Pastebin archive monitor
 - Optional ACLED connector (env-gated: `ACLED_API_KEY` + `ACLED_EMAIL`)
 
