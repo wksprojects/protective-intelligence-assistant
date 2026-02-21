@@ -25,14 +25,12 @@ DEFAULT_GDELT_PI_EP_QUERY = (
 )
 
 KEYWORD_CATEGORY_ALIASES = {
-    "threat_actors": "threat_actor",
-    "threat_actor": "threat_actor",
-    "vulnerabilities": "vulnerability",
-    "vulnerability": "vulnerability",
     "protest": "protest_disruption",
     "facility_risk": "protective_intel",
     "person_of_interest": "poi",
     "people_of_interest": "poi",
+    "workplace": "insider_workplace",
+    "travel": "travel_risk",
 }
 
 KEYWORD_DEFAULT_WEIGHTS_BY_CATEGORY = {
@@ -807,10 +805,8 @@ def seed_default_sources():
                 "rss",
                 0.6,
             ),
-            ("CISA Alerts", "https://www.cisa.gov/news.xml", "rss", 0.8),
-            ("Krebs on Security", "https://krebsonsecurity.com/feed/", "rss", 0.75),
-            ("r/cybersecurity", "https://www.reddit.com/r/cybersecurity/.rss", "reddit", 0.4),
-            ("r/threatintel", "https://www.reddit.com/r/threatintel/.rss", "reddit", 0.5),
+            ("r/OSINT", "https://www.reddit.com/r/OSINT/.rss", "reddit", 0.5),
+            ("r/security", "https://www.reddit.com/r/security/.rss", "reddit", 0.45),
         ]
         seed_origin = "hardcoded defaults"
 
@@ -855,18 +851,20 @@ def seed_default_keywords():
             ("bomb threat", "protective_intel", 5.0),
             ("active shooter", "protective_intel", 5.0),
             ("threat to CEO", "protective_intel", 4.8),
+            ("hostile surveillance", "protective_intel", 4.3),
+            ("kidnapping", "protective_intel", 5.0),
+            ("stalking", "protective_intel", 3.8),
             ("protest", "protest_disruption", 2.1),
             ("blockade", "protest_disruption", 2.6),
             ("curfew", "travel_risk", 3.2),
             ("unrest", "travel_risk", 3.4),
             ("airport disruption", "travel_risk", 2.8),
+            ("travel advisory", "travel_risk", 3.8),
+            ("civil unrest", "travel_risk", 3.4),
+            ("evacuation", "travel_risk", 3.7),
             ("disgruntled", "insider_workplace", 3.3),
             ("restraining order", "insider_workplace", 4.1),
-            ("ransomware", "malware", 3.0),
-            ("CVE", "ioc", 1.2),
-            ("APT29", "threat_actor", 2.0),
-            ("phishing", "cti_optional", 1.5),
-            ("data breach", "cti_optional", 1.8),
+            ("insider threat", "insider_workplace", 3.4),
         ]
         seed_origin = "hardcoded defaults"
 
@@ -1090,22 +1088,10 @@ def seed_default_events():
 
 def seed_threat_actors():
     conn = get_connection()
-    actors = [
-        ("APT28", "Fancy Bear, Sofacy, Sednit", "Russian state-sponsored cyber espionage group"),
-        ("APT29", "Cozy Bear, The Dukes, Nobelium", "Russian state-sponsored, SolarWinds campaign"),
-        ("Lazarus Group", "Hidden Cobra, Zinc, Diamond Sleet", "North Korean state-sponsored"),
-        (
-            "APT41",
-            "Winnti, Barium, Wicked Panda",
-            "Chinese state-sponsored dual espionage/financial",
-        ),
-        ("Conti", "Wizard Spider", "Russian-speaking ransomware syndicate"),
-        ("LockBit", "LockBit 3.0, LockBit Black", "Ransomware-as-a-Service operation"),
-        ("BlackCat", "ALPHV, Noberus", "Rust-based ransomware group"),
-        ("Sandworm", "Voodoo Bear, IRIDIUM", "Russian GRU Unit 74455"),
-        ("Scattered Spider", "UNC3944, 0ktapus", "Social engineering focused group"),
-        ("Cl0p", "TA505, FIN11", "Ransomware group, MOVEit campaigns"),
-    ]
+    # EP-relevant threat actor categories (physical security focus).
+    # Threat subjects with behavioral assessments are the primary EP tracking
+    # mechanism; this table provides reference context for known groups.
+    actors = []
     for name, aliases, description in actors:
         existing = conn.execute("SELECT id FROM threat_actors WHERE name = ?", (name,)).fetchone()
         if not existing:

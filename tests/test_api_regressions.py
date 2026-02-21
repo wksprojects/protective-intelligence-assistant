@@ -50,7 +50,7 @@ def test_daily_report_uses_requested_date_for_spike_detection(client):
     report_date = report_dt.strftime("%Y-%m-%d")
 
     conn = get_connection()
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'ransomware'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'stalking'").fetchone()["id"]
 
     for days_back in range(1, 8):
         day = (report_dt - timedelta(days=days_back)).strftime("%Y-%m-%d")
@@ -71,7 +71,7 @@ def test_daily_report_uses_requested_date_for_spike_detection(client):
 
     report = response.json()
     ransomware_theme = next(
-        (theme for theme in report["emerging_themes"] if theme["term"] == "ransomware"),
+        (theme for theme in report["emerging_themes"] if theme["term"] == "stalking"),
         None,
     )
     assert ransomware_theme is not None

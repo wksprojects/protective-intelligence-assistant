@@ -14,7 +14,7 @@ from scraper.rss_scraper import match_keywords
 def _get_source_and_keyword_ids():
     conn = get_connection()
     source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'ransomware'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'stalking'").fetchone()["id"]
     conn.close()
     return source_id, keyword_id
 
@@ -34,7 +34,7 @@ def test_recency_prefers_published_timestamp(client):
             "Published-old alert",
             "content",
             "https://example.com/published-old",
-            "ransomware",
+            "stalking",
             old_published,
             "low",
         ),
@@ -78,7 +78,7 @@ def test_frequency_snapshot_keeps_same_keyword_scores_order_independent(client):
                 f"Order test {idx}",
                 "same content",
                 f"https://example.com/order-{idx}",
-                "ransomware",
+                "stalking",
                 "low",
             ),
         )
@@ -113,14 +113,14 @@ def test_apt_keyword_avoids_plain_language_false_positives():
 
 def test_api_startup_does_not_overwrite_keyword_weights(client):
     conn = get_connection()
-    conn.execute("UPDATE keywords SET weight = 1.7 WHERE term = 'ransomware'")
+    conn.execute("UPDATE keywords SET weight = 1.7 WHERE term = 'stalking'")
     conn.commit()
     conn.close()
 
     startup()
 
     conn = get_connection()
-    weight = conn.execute("SELECT weight FROM keywords WHERE term = 'ransomware'").fetchone()[
+    weight = conn.execute("SELECT weight FROM keywords WHERE term = 'stalking'").fetchone()[
         "weight"
     ]
     conn.close()

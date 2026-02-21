@@ -14,6 +14,16 @@ keywords:
       weight: 5.0
     - term: "death threat"
       weight: 5.0
+    - term: "active shooter"
+      weight: 5.0
+    - term: "threat to CEO"
+      weight: 4.8
+    - term: "assassination"
+      weight: 5.0
+    - term: "workplace violence"
+      weight: 4.5
+    - term: "armed intruder"
+      weight: 4.8
 
   travel_risk:
     - term: "travel advisory"
@@ -32,6 +42,12 @@ keywords:
       weight: 3.6
     - term: "evacuation"
       weight: 3.7
+    - term: "coup"
+      weight: 4.5
+    - term: "martial law"
+      weight: 4.2
+    - term: "state of emergency"
+      weight: 3.9
 
   protest_disruption:
     - term: "demonstration"
@@ -42,6 +58,10 @@ keywords:
       weight: 2.6
     - term: "sit-in"
       weight: 2.2
+    - term: "riot"
+      weight: 3.5
+    - term: "looting"
+      weight: 3.2
 
   insider_workplace:
     - term: "disgruntled"
@@ -52,32 +72,10 @@ keywords:
       weight: 2.5
     - term: "insider threat"
       weight: 3.4
-
-  ioc:
-    - term: "CVE"
-      weight: 1.2
-    - term: "ip"
-      weight: 1.1
-    - term: "domain"
-      weight: 1.1
-
-cti_optional:
-  threat_actor:
-    - "APT29"
-    - "APT28"
-    - "advanced persistent threat"
-  malware:
-    - "ransomware"
-    - "malware"
-    - "botnet"
-  vulnerability:
-    - "zero day"
-    - "remote code execution"
-    - "privilege escalation"
-  general:
-    - "data breach"
-    - "credential leak"
-    - "phishing"
+    - term: "termination threat"
+      weight: 3.6
+    - term: "workplace grievance"
+      weight: 2.8
 
 sources:
   rss:
@@ -93,16 +91,12 @@ sources:
     - name: "GDELT Travel/Unrest Watch"
       gdelt_query: '(travel advisory OR curfew OR unrest OR protest OR strike OR airport disruption OR outbreak OR evacuation) AND (city OR airport OR venue OR conference)'
       credibility_score: 0.6
-    - name: "CISA Alerts"
-      url: "https://www.cisa.gov/news.xml"
-    - name: "Krebs on Security"
-      url: "https://krebsonsecurity.com/feed/"
 
   reddit:
-    - name: "r/cybersecurity"
-      url: "https://www.reddit.com/r/cybersecurity/.rss"
-    - name: "r/threatintel"
-      url: "https://www.reddit.com/r/threatintel/.rss"
+    - name: "r/OSINT"
+      url: "https://www.reddit.com/r/OSINT/.rss"
+    - name: "r/security"
+      url: "https://www.reddit.com/r/security/.rss"
 
   pastebin:
     - name: "Pastebin Archive"

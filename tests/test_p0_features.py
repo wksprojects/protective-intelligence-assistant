@@ -21,7 +21,7 @@ def _insert_alert(source_id, keyword_id, title, content, url, risk_score=90.0):
             title,
             content,
             url,
-            "ransomware",
+            "stalking",
             "high",
             risk_score,
             utcnow().strftime("%Y-%m-%d %H:%M:%S"),
@@ -48,7 +48,7 @@ def test_extraction_regex_fallback_finds_cve(monkeypatch):
 def test_ioc_endpoint_and_daily_report_include_cve(client):
     conn = get_connection()
     source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'ransomware'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'stalking'").fetchone()["id"]
     conn.close()
 
     alert_id = _insert_alert(
@@ -83,7 +83,7 @@ def test_ioc_endpoint_and_daily_report_include_cve(client):
 def test_entities_endpoint_returns_regex_extracted_iocs(client):
     conn = get_connection()
     source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'ransomware'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'stalking'").fetchone()["id"]
     conn.close()
 
     alert_id = _insert_alert(
@@ -140,7 +140,7 @@ def test_uncertainty_interval_width_shrinks_with_more_evidence():
 def test_score_endpoint_uncertainty_works_without_weight_sigma(client):
     conn = get_connection()
     source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'ransomware'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'stalking'").fetchone()["id"]
     conn.execute("UPDATE keywords SET weight_sigma = NULL WHERE id = ?", (keyword_id,))
     conn.execute(
         """INSERT INTO alerts
@@ -152,7 +152,7 @@ def test_score_endpoint_uncertainty_works_without_weight_sigma(client):
             "Uncertainty check alert",
             "content",
             "https://example.com/uncertainty",
-            "ransomware",
+            "stalking",
             "low",
         ),
     )
@@ -178,7 +178,7 @@ def test_score_endpoint_uncertainty_works_without_weight_sigma(client):
 
 def test_forecast_fallback_and_ewma_modes(client):
     conn = get_connection()
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'ransomware'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'stalking'").fetchone()["id"]
     start = utcnow() - timedelta(days=30)
 
     # Sparse history first -> naive fallback.
@@ -216,7 +216,7 @@ def test_forecast_fallback_and_ewma_modes(client):
 def test_graph_endpoint_returns_nodes_and_edges(client):
     conn = get_connection()
     source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'ransomware'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'stalking'").fetchone()["id"]
     conn.close()
 
     alert_id = _insert_alert(
