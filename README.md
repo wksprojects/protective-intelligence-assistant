@@ -45,6 +45,40 @@ bash scripts/demo.sh --run   # also starts API + dashboard
 
 ---
 
+## Use It Directly (No Demo)
+
+1. Install dependencies and initialize the database.
+```bash
+pip install -r requirements.txt
+make init
+```
+
+2. Start API and dashboard in separate terminals.
+```bash
+# Terminal 1
+make api
+
+# Terminal 2
+make dashboard
+```
+
+3. Run ingestion when you want fresh alerts.
+```bash
+make scrape
+```
+
+4. Work from the dashboard and API docs.
+- Dashboard: `http://localhost:8501`
+- API docs (Swagger): `http://localhost:8000/docs`
+
+5. Optional: enable API auth in non-local environments.
+```bash
+export PI_API_KEY="change-me"
+```
+If set, include `X-API-Key: <value>` on protected endpoints.
+
+---
+
 ## What It Does
 
 ### Core EP Workflow
