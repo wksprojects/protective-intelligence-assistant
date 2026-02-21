@@ -116,7 +116,7 @@ def geocode_query(conn, query, provider="nominatim"):
             params={"q": normalized, "format": "json", "limit": 1},
             headers={
                 "User-Agent": os.getenv(
-                    "GEOCODER_USER_AGENT", "osint-threat-monitor/ep-demo (contact: local-dev)"
+                    "GEOCODER_USER_AGENT", "protective-intel-assistant/5.0 (contact: local-dev)"
                 )
             },
             timeout=8,

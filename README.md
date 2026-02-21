@@ -252,9 +252,9 @@ Production integration requires appropriate API credentials and legal/ToS compli
 - `RAW_CONTENT_RETENTION_DAYS=30` (default) — purge via `python run.py purge`
 
 ### Authentication
-- `OSINT_API_KEY` — when set, all non-root API endpoints require `X-API-Key` header
+- `PI_API_KEY` — when set, all non-root API endpoints require `X-API-Key` header
 - When unset, auth is disabled (local development mode)
-- Dashboard requests will automatically send `X-API-Key` when `OSINT_API_KEY` is set in the dashboard process environment.
+- Dashboard requests will automatically send `X-API-Key` when `PI_API_KEY` is set in the dashboard process environment.
 
 ---
 

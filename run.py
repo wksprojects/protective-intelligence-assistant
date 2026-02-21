@@ -1,5 +1,5 @@
 """
-OSINT Threat Monitor - Entry Point
+Protective Intelligence Assistant - Entry Point
 
 Usage:
     python run.py init        Initialize DB and seed from config/watchlist.yaml (fallback defaults)

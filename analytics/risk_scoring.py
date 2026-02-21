@@ -1,5 +1,5 @@
 """
-Risk Scoring Engine for OSINT Threat Monitor.
+Risk Scoring Engine for Protective Intelligence Assistant.
 
 Statistical approach:
 - Z-score anomaly detection for keyword frequency spikes

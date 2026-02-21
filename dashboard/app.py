@@ -6,8 +6,8 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 
-API_URL = os.getenv("OSINT_API_URL", "http://localhost:8000").rstrip("/")
-API_KEY = os.getenv("OSINT_API_KEY", "").strip()
+API_URL = os.getenv("PI_API_URL", "http://localhost:8000").rstrip("/")
+API_KEY = os.getenv("PI_API_KEY", "").strip()
 
 st.set_page_config(
     page_title="Protective Intelligence Assistant",

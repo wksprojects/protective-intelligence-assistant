@@ -5,7 +5,7 @@ from urllib.parse import quote_plus, urlencode
 
 import yaml
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "osint_monitor.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "protective_intel.db")
 WATCHLIST_CONFIG_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "config", "watchlist.yaml")
 )

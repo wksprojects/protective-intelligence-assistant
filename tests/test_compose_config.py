@@ -12,4 +12,4 @@ def test_compose_uses_valid_scraper_entrypoint_and_dashboard_api_env():
     assert scraper_command == "python run.py scrape"
 
     dashboard_env = compose["services"]["dashboard"].get("environment", [])
-    assert "OSINT_API_URL=http://api:8000" in dashboard_env
+    assert "PI_API_URL=http://api:8000" in dashboard_env

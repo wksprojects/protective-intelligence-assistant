@@ -3,7 +3,7 @@ version: "3.8"
 services:
   api:
     build: .
-    container_name: osint-api
+    container_name: pi-api
     ports:
       - "8000:8000"
     volumes:
@@ -14,7 +14,7 @@ services:
 
   dashboard:
     build: .
-    container_name: osint-dashboard
+    container_name: pi-dashboard
     ports:
       - "8501:8501"
     depends_on:
@@ -22,13 +22,13 @@ services:
     volumes:
       - ./database:/app/database
     environment:
-      - OSINT_API_URL=http://api:8000
+      - PI_API_URL=http://api:8000
     command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
     restart: unless-stopped
 
   scraper:
     build: .
-    container_name: osint-scraper
+    container_name: pi-scraper
     volumes:
       - ./database:/app/database
       - ./config:/app/config
