@@ -47,13 +47,82 @@ def _api_patch(path, timeout=20):
     resp.raise_for_status()
     return resp.json()
 
+
+def _style_plot(fig, height=None):
+    fig.update_layout(
+        template="plotly_white",
+        margin={"l": 24, "r": 20, "t": 40, "b": 24},
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+    )
+    if height is not None:
+        fig.update_layout(height=height)
+    return fig
+
+
 st.set_page_config(
-    page_title="OSINT Threat Monitor",
-    page_icon="🛡️",
+    page_title="Protective Intelligence Console",
+    page_icon="PI",
     layout="wide",
 )
 
-st.title("🛡️ Protective Intelligence Assistant — Travel Security")
+st.markdown(
+    """
+<style>
+    :root {
+        --bg: #f3f5f8;
+        --panel: #ffffff;
+        --ink: #0f172a;
+        --muted: #475569;
+        --line: #dbe2ea;
+        --accent: #0f4c81;
+    }
+    .stApp {
+        background:
+            radial-gradient(circle at 8% 8%, #e7eef7 0%, rgba(231, 238, 247, 0) 35%),
+            radial-gradient(circle at 92% 0%, #edf6f2 0%, rgba(237, 246, 242, 0) 30%),
+            var(--bg);
+    }
+    .ops-header {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin-bottom: 14px;
+    }
+    .ops-kicker {
+        color: var(--accent);
+        font-size: 0.76rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+    .ops-title {
+        color: var(--ink);
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+    }
+    .ops-subtitle {
+        color: var(--muted);
+        margin-top: 6px;
+        margin-bottom: 0;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+st.markdown(
+    """
+<section class="ops-header">
+  <div class="ops-kicker">Operations Console</div>
+  <h1 class="ops-title">Protective Intelligence and Travel Security</h1>
+  <p class="ops-subtitle">State Department alerts, public safety indicators, and threat signals for analyst triage.</p>
+</section>
+""",
+    unsafe_allow_html=True,
+)
 
 # --- Check API connection ---
 try:
@@ -64,20 +133,25 @@ except requests.RequestException:
 
 # --- Tab layout ---
 tab_overview, tab_intel, tab_alerts, tab_analytics, tab_config = st.tabs([
-    "📊 Overview",
-    "📋 Intelligence Report",
-    "🚨 Alert Feed",
-    "📈 Analytics",
-    "⚙️ Configuration",
+    "Overview",
+    "Daily Briefing",
+    "Alerts",
+    "Analytics",
+    "Configuration",
 ])
 
 SEVERITY_COLORS = {
-    "critical": "#dc2626",
-    "high": "#f97316",
-    "medium": "#eab308",
-    "low": "#22c55e",
+    "critical": "#b42318",
+    "high": "#c2410c",
+    "medium": "#b08900",
+    "low": "#1d7a46",
 }
-SEVERITY_ICONS = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
+SEVERITY_LABELS = {
+    "critical": "CRITICAL",
+    "high": "HIGH",
+    "medium": "MEDIUM",
+    "low": "LOW",
+}
 
 
 # ============================================================
@@ -86,6 +160,7 @@ SEVERITY_ICONS = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "
 with tab_overview:
     try:
         summary = _api_get("/alerts/summary")
+        st.caption(f"Updated {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
 
         # KPI Row
         col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -116,7 +191,8 @@ with tab_overview:
                     severity_df, x="Severity", y="Count",
                     color="Severity", color_discrete_map=SEVERITY_COLORS,
                 )
-                fig_sev.update_layout(showlegend=False, height=350)
+                fig_sev.update_layout(showlegend=False)
+                _style_plot(fig_sev, height=350)
                 st.plotly_chart(fig_sev, use_container_width=True)
 
         with col_mid:
@@ -126,7 +202,7 @@ with tab_overview:
                     list(summary["by_source"].items()), columns=["Source", "Count"]
                 )
                 fig_src = px.pie(source_df, values="Count", names="Source", hole=0.4)
-                fig_src.update_layout(height=350)
+                _style_plot(fig_src, height=350)
                 st.plotly_chart(fig_src, use_container_width=True)
 
         with col_right:
@@ -137,7 +213,7 @@ with tab_overview:
                 )
                 kw_df = kw_df.sort_values("Count", ascending=True)
                 fig_kw = px.bar(kw_df, x="Count", y="Keyword", orientation="h")
-                fig_kw.update_layout(height=350)
+                _style_plot(fig_kw, height=350)
                 st.plotly_chart(fig_kw, use_container_width=True)
 
         # Risk score distribution
@@ -149,11 +225,10 @@ with tab_overview:
                 fig_hist = px.histogram(
                     x=scores, nbins=20,
                     labels={"x": "Risk Score", "y": "Count"},
-                    color_discrete_sequence=["#f97316"],
+                    color_discrete_sequence=["#0f4c81"],
                 )
-                fig_hist.update_layout(
-                    xaxis_title="Risk Score", yaxis_title="Alert Count", height=300,
-                )
+                fig_hist.update_layout(xaxis_title="Risk Score", yaxis_title="Alert Count")
+                _style_plot(fig_hist, height=300)
                 st.plotly_chart(fig_hist, use_container_width=True)
 
     except requests.RequestException as e:
@@ -164,7 +239,7 @@ with tab_overview:
 # TAB 2: INTELLIGENCE REPORT
 # ============================================================
 with tab_intel:
-    st.subheader("Daily Intelligence Report")
+    st.subheader("Daily Intelligence Briefing")
 
     report_date = st.date_input("Report Date", value=date.today())
 
@@ -233,10 +308,10 @@ with tab_intel:
             themes_df = pd.DataFrame(themes)
             fig_themes = px.bar(
                 themes_df, x="term", y="spike_ratio",
-                color="spike_ratio", color_continuous_scale="OrRd",
+                color="spike_ratio", color_continuous_scale="Blues",
                 labels={"term": "Keyword", "spike_ratio": "Spike Ratio (vs 7d avg)"},
             )
-            fig_themes.update_layout(height=350)
+            _style_plot(fig_themes, height=350)
             st.plotly_chart(fig_themes, use_container_width=True)
         else:
             st.info("No keyword spikes detected. Spike detection requires 3+ days of scraping data.")
@@ -264,7 +339,7 @@ with tab_intel:
 # TAB 3: ALERT FEED
 # ============================================================
 with tab_alerts:
-    st.subheader("Alert Feed")
+    st.subheader("Alert Queue")
 
     filter_col1, filter_col2, filter_col3 = st.columns(3)
     with filter_col1:
@@ -294,12 +369,12 @@ with tab_alerts:
         if alerts:
             for alert in alerts:
                 severity = alert["severity"]
-                icon = SEVERITY_ICONS.get(severity, "⚪")
-                reviewed_tag = "✅" if alert["reviewed"] else "🔲"
+                severity_tag = SEVERITY_LABELS.get(severity, severity.upper())
+                reviewed_tag = "REVIEWED" if alert["reviewed"] else "OPEN"
                 score = alert.get("risk_score", 0) or 0
 
                 with st.expander(
-                    f"{icon} {reviewed_tag} [{severity.upper()} {score:.0f}] {alert['title'][:100]}"
+                    f"[{severity_tag} {score:.0f}] {alert['title'][:100]} ({reviewed_tag})"
                 ):
                     mc1, mc2, mc3, mc4 = st.columns(4)
                     mc1.write(f"**Risk Score:** {score:.1f}")
@@ -350,11 +425,11 @@ with tab_analytics:
             spike_df = pd.DataFrame(spikes)
             fig_spike = px.bar(
                 spike_df, x="term", y="spike_ratio",
-                color="today_count", color_continuous_scale="Reds",
+                color="today_count", color_continuous_scale="Blues",
                 labels={"term": "Keyword", "spike_ratio": "Spike Ratio", "today_count": "Today's Count"},
                 title="Active Keyword Spikes (vs 7-day average)",
             )
-            fig_spike.update_layout(height=400)
+            _style_plot(fig_spike, height=400)
             st.plotly_chart(fig_spike, use_container_width=True)
             st.dataframe(spike_df, use_container_width=True, hide_index=True)
         else:
@@ -383,7 +458,7 @@ with tab_analytics:
                         title=f"Daily frequency: {selected_term}",
                         markers=True,
                     )
-                    fig_trend.update_layout(height=350)
+                    _style_plot(fig_trend, height=350)
                     st.plotly_chart(fig_trend, use_container_width=True)
                 else:
                     st.info("No frequency data yet for this keyword. Run the scraper to populate.")
@@ -402,11 +477,11 @@ with tab_analytics:
                 source_df = source_df.sort_values("credibility_score", ascending=True)
                 fig_cred = px.bar(
                     source_df, x="credibility_score", y="name", orientation="h",
-                    color="credibility_score", color_continuous_scale="Greens",
+                    color="credibility_score", color_continuous_scale="Blues",
                     labels={"credibility_score": "Credibility Score", "name": "Source"},
                     title="Intelligence Source Credibility",
                 )
-                fig_cred.update_layout(height=350)
+                _style_plot(fig_cred, height=350)
                 st.plotly_chart(fig_cred, use_container_width=True)
     except Exception as e:
         st.error(f"Error loading source data: {e}")
