@@ -19,41 +19,47 @@ def _haversine_miles(lat1, lon1, lat2, lon2):
     return radius_miles * c
 
 
-def _severity_counts(conn, start_date, end_date):
-    rows = conn.execute(
-        """SELECT severity, COUNT(*) as count FROM alerts
-        WHERE created_at >= ? AND created_at < ?
-          AND duplicate_of IS NULL
-        GROUP BY severity""",
-        (start_date, end_date),
-    ).fetchall()
+def _severity_counts(conn, start_date, end_date, include_demo=False):
+    query = """SELECT a.severity, COUNT(*) as count
+        FROM alerts a
+        LEFT JOIN sources s ON s.id = a.source_id
+        WHERE a.created_at >= ? AND a.created_at < ?
+          AND a.duplicate_of IS NULL"""
+    if not include_demo:
+        query += " AND COALESCE(s.source_type, '') != 'demo'"
+    query += " GROUP BY a.severity"
+    rows = conn.execute(query, (start_date, end_date)).fetchall()
     return {row["severity"]: row["count"] for row in rows}
 
 
-def _top_operational_alerts(conn, start_date, end_date, limit=10):
-    rows = conn.execute(
-        """SELECT a.id, a.title, a.ors_score, a.tas_score, a.risk_score, a.severity,
+def _top_operational_alerts(conn, start_date, end_date, limit=10, include_demo=False):
+    query = """SELECT a.id, a.title, a.ors_score, a.tas_score, a.risk_score, a.severity,
                   a.matched_term, s.name AS source_name, k.term AS keyword, k.category
         FROM alerts a
         LEFT JOIN sources s ON s.id = a.source_id
         LEFT JOIN keywords k ON k.id = a.keyword_id
         WHERE a.created_at >= ? AND a.created_at < ?
-          AND a.duplicate_of IS NULL
-        ORDER BY COALESCE(a.ors_score, a.risk_score) DESC
-        LIMIT ?""",
-        (start_date, end_date, limit),
-    ).fetchall()
+          AND a.duplicate_of IS NULL"""
+    if not include_demo:
+        query += " AND COALESCE(s.source_type, '') != 'demo'"
+    query += " ORDER BY COALESCE(a.ors_score, a.risk_score) DESC LIMIT ?"
+    rows = conn.execute(query, (start_date, end_date, limit)).fetchall()
     return [dict(row) for row in rows]
 
 
-def _top_entities_and_cves(conn, start_date, end_date):
+def _top_entities_and_cves(conn, start_date, end_date, include_demo=False):
+    demo_filter = ""
+    if not include_demo:
+        demo_filter = " AND COALESCE(s.source_type, '') != 'demo'"
     top_entities = conn.execute(
-        """SELECT ae.entity_type AS type, ae.entity_value AS value, COUNT(*) AS mention_count
+        f"""SELECT ae.entity_type AS type, ae.entity_value AS value, COUNT(*) AS mention_count
         FROM alert_entities ae
         JOIN alerts a ON a.id = ae.alert_id
+        LEFT JOIN sources s ON s.id = a.source_id
         WHERE COALESCE(a.published_at, a.created_at) >= ?
           AND COALESCE(a.published_at, a.created_at) < ?
           AND a.duplicate_of IS NULL
+          {demo_filter}
         GROUP BY ae.entity_type, ae.entity_value
         ORDER BY mention_count DESC
         LIMIT 20""",
@@ -61,13 +67,15 @@ def _top_entities_and_cves(conn, start_date, end_date):
     ).fetchall()
 
     new_cves = conn.execute(
-        """SELECT DISTINCT ae.entity_value AS value
+        f"""SELECT DISTINCT ae.entity_value AS value
         FROM alert_entities ae
         JOIN alerts a ON a.id = ae.alert_id
+        LEFT JOIN sources s ON s.id = a.source_id
         WHERE ae.entity_type = 'cve'
           AND COALESCE(a.published_at, a.created_at) >= ?
           AND COALESCE(a.published_at, a.created_at) < ?
           AND a.duplicate_of IS NULL
+          {demo_filter}
         ORDER BY ae.entity_value DESC
         LIMIT 20""",
         (start_date, end_date),
@@ -98,26 +106,26 @@ def _top_poi_status(conn, limit=10):
     return sorted(latest.values(), key=lambda x: x["tas_score"], reverse=True)
 
 
-def _facility_watch(conn, start_date, end_date):
-    rows = conn.execute(
-        """SELECT pl.name AS protected_location,
+def _facility_watch(conn, start_date, end_date, include_demo=False):
+    query = """SELECT pl.name AS protected_location,
                   COUNT(*) AS alert_count,
                   MAX(COALESCE(a.ors_score, a.risk_score)) AS max_ors,
                   SUM(CASE WHEN ap.within_radius = 1 THEN 1 ELSE 0 END) AS within_radius_count
         FROM alert_proximity ap
         JOIN protected_locations pl ON pl.id = ap.protected_location_id
         JOIN alerts a ON a.id = ap.alert_id
+        LEFT JOIN sources s ON s.id = a.source_id
         WHERE datetime(COALESCE(a.published_at, a.created_at)) >= datetime(?)
           AND datetime(COALESCE(a.published_at, a.created_at)) < datetime(?)
-          AND a.duplicate_of IS NULL
-        GROUP BY pl.id
-        ORDER BY max_ors DESC, within_radius_count DESC""",
-        (start_date, end_date),
-    ).fetchall()
+          AND a.duplicate_of IS NULL"""
+    if not include_demo:
+        query += " AND COALESCE(s.source_type, '') != 'demo'"
+    query += " GROUP BY pl.id ORDER BY max_ors DESC, within_radius_count DESC"
+    rows = conn.execute(query, (start_date, end_date)).fetchall()
     return [dict(row) for row in rows]
 
 
-def _upcoming_event_watch(conn):
+def _upcoming_event_watch(conn, include_demo=False):
     events = conn.execute(
         """SELECT e.id, e.name, e.type, e.start_dt, e.end_dt, e.city, e.venue, e.lat, e.lon,
                   p.name AS poi_name
@@ -130,14 +138,19 @@ def _upcoming_event_watch(conn):
     if not events:
         return []
 
+    demo_filter = ""
+    if not include_demo:
+        demo_filter = " AND COALESCE(s.source_type, '') != 'demo'"
     recent_alert_locations = conn.execute(
-        """SELECT a.id AS alert_id, COALESCE(a.ors_score, a.risk_score, 0) AS ors_score,
+        f"""SELECT a.id AS alert_id, COALESCE(a.ors_score, a.risk_score, 0) AS ors_score,
                   al.lat, al.lon
         FROM alerts a
         JOIN alert_locations al ON al.alert_id = a.id
+        LEFT JOIN sources s ON s.id = a.source_id
         WHERE a.duplicate_of IS NULL
           AND al.lat IS NOT NULL AND al.lon IS NOT NULL
-          AND datetime(COALESCE(a.published_at, a.created_at)) >= datetime('now', '-7 days')"""
+          AND datetime(COALESCE(a.published_at, a.created_at)) >= datetime('now', '-7 days')
+          {demo_filter}"""
     ).fetchall()
 
     output = []
@@ -256,7 +269,7 @@ def _apply_redaction(conn, report):
     return report
 
 
-def generate_daily_report(report_date=None):
+def generate_daily_report(report_date=None, include_demo=False):
     conn = get_connection()
     try:
         if report_date is None:
@@ -266,17 +279,19 @@ def generate_daily_report(report_date=None):
         day_end = (datetime.strptime(report_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
         prev_day = (datetime.strptime(report_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
 
-        top_ops = _top_operational_alerts(conn, day_start, day_end, limit=10)
-        severity_map = _severity_counts(conn, day_start, day_end)
-        prev_severity_map = _severity_counts(conn, prev_day, report_date)
+        top_ops = _top_operational_alerts(conn, day_start, day_end, limit=10, include_demo=include_demo)
+        severity_map = _severity_counts(conn, day_start, day_end, include_demo=include_demo)
+        prev_severity_map = _severity_counts(conn, prev_day, report_date, include_demo=include_demo)
         total = sum(severity_map.values())
         prev_total = sum(prev_severity_map.values())
 
         spikes = detect_spikes(threshold=1.5, as_of_date=report_date)
-        top_entities, new_cves = _top_entities_and_cves(conn, day_start, day_end)
+        top_entities, new_cves = _top_entities_and_cves(
+            conn, day_start, day_end, include_demo=include_demo
+        )
         top_pois = _top_poi_status(conn, limit=10)
-        facility_watch = _facility_watch(conn, day_start, day_end)
-        upcoming_events = _upcoming_event_watch(conn)
+        facility_watch = _facility_watch(conn, day_start, day_end, include_demo=include_demo)
+        upcoming_events = _upcoming_event_watch(conn, include_demo=include_demo)
         escalations = _build_escalations(top_ops, top_pois, facility_watch)
 
         executive_summary = _build_executive_summary(

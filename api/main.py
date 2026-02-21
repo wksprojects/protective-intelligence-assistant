@@ -158,6 +158,7 @@ def get_alerts(
     severity: Optional[str] = None,
     reviewed: Optional[int] = None,
     min_score: Optional[float] = None,
+    include_demo: int = Query(default=0, ge=0, le=1),
     sort_by: str = Query(default="risk_score", pattern="^(risk_score|created_at|published_at)$"),
     limit: int = Query(default=50, le=500),
     offset: int = 0,
@@ -174,6 +175,8 @@ def get_alerts(
     """
     params = []
 
+    if not include_demo:
+        query += " AND COALESCE(s.source_type, '') != 'demo'"
     if severity:
         query += " AND a.severity = ?"
         params.append(severity)
@@ -193,36 +196,69 @@ def get_alerts(
 
 
 @app.get("/alerts/summary", dependencies=[Depends(verify_api_key)])
-def get_alerts_summary():
+def get_alerts_summary(include_demo: int = Query(default=0, ge=0, le=1)):
     conn = get_connection()
-    total = conn.execute("SELECT COUNT(*) as count FROM alerts").fetchone()["count"]
+    demo_filter = ""
+    if not include_demo:
+        demo_filter = " AND COALESCE(s.source_type, '') != 'demo'"
+
+    total = conn.execute(
+        f"""SELECT COUNT(*) as count FROM alerts a
+        LEFT JOIN sources s ON a.source_id = s.id
+        WHERE 1=1 {demo_filter}"""
+    ).fetchone()["count"]
     unique = conn.execute(
-        "SELECT COUNT(*) as count FROM alerts WHERE duplicate_of IS NULL"
+        f"""SELECT COUNT(*) as count FROM alerts a
+        LEFT JOIN sources s ON a.source_id = s.id
+        WHERE a.duplicate_of IS NULL {demo_filter}"""
     ).fetchone()["count"]
     by_severity = conn.execute(
-        "SELECT severity, COUNT(*) as count FROM alerts WHERE duplicate_of IS NULL GROUP BY severity"
+        f"""SELECT a.severity, COUNT(*) as count
+        FROM alerts a
+        LEFT JOIN sources s ON a.source_id = s.id
+        WHERE a.duplicate_of IS NULL {demo_filter}
+        GROUP BY a.severity"""
     ).fetchall()
     by_source = conn.execute(
         """SELECT s.name, COUNT(*) as count FROM alerts a
+        JOIN sources s ON a.source_id = s.id
+        WHERE a.duplicate_of IS NULL
+          AND COALESCE(s.source_type, '') != 'demo'
+        GROUP BY s.name ORDER BY count DESC"""
+        if not include_demo
+        else """SELECT s.name, COUNT(*) as count FROM alerts a
         JOIN sources s ON a.source_id = s.id
         WHERE a.duplicate_of IS NULL
         GROUP BY s.name ORDER BY count DESC"""
     ).fetchall()
     top_keywords = conn.execute(
         """SELECT k.term, COUNT(*) as count FROM alerts a
+        LEFT JOIN sources s ON a.source_id = s.id
+        JOIN keywords k ON a.keyword_id = k.id
+        WHERE a.duplicate_of IS NULL
+          AND COALESCE(s.source_type, '') != 'demo'
+        GROUP BY k.term ORDER BY count DESC LIMIT 10"""
+        if not include_demo
+        else """SELECT k.term, COUNT(*) as count FROM alerts a
         JOIN keywords k ON a.keyword_id = k.id
         WHERE a.duplicate_of IS NULL
         GROUP BY k.term ORDER BY count DESC LIMIT 10"""
     ).fetchall()
     unreviewed = conn.execute(
-        "SELECT COUNT(*) as count FROM alerts WHERE reviewed = 0 AND duplicate_of IS NULL"
+        f"""SELECT COUNT(*) as count FROM alerts a
+        LEFT JOIN sources s ON a.source_id = s.id
+        WHERE a.reviewed = 0 AND a.duplicate_of IS NULL {demo_filter}"""
     ).fetchone()["count"]
     avg_score_row = conn.execute(
-        "SELECT AVG(COALESCE(ors_score, risk_score)) as avg FROM alerts WHERE reviewed = 0 AND duplicate_of IS NULL"
+        f"""SELECT AVG(COALESCE(a.ors_score, a.risk_score)) as avg FROM alerts a
+        LEFT JOIN sources s ON a.source_id = s.id
+        WHERE a.reviewed = 0 AND a.duplicate_of IS NULL {demo_filter}"""
     ).fetchone()
     avg_risk_score = round(avg_score_row["avg"], 1) if avg_score_row["avg"] else 0.0
     avg_tas_row = conn.execute(
-        "SELECT AVG(tas_score) as avg FROM alerts WHERE reviewed = 0 AND duplicate_of IS NULL"
+        f"""SELECT AVG(a.tas_score) as avg FROM alerts a
+        LEFT JOIN sources s ON a.source_id = s.id
+        WHERE a.reviewed = 0 AND a.duplicate_of IS NULL {demo_filter}"""
     ).fetchone()
     avg_tas_score = round(avg_tas_row["avg"], 1) if avg_tas_row["avg"] else 0.0
 
@@ -421,7 +457,7 @@ def trigger_rescore():
 
 
 @app.get("/intelligence/daily", dependencies=[Depends(verify_api_key)])
-def get_daily_report(date: Optional[str] = None):
+def get_daily_report(date: Optional[str] = None, include_demo: int = Query(default=0, ge=0, le=1)):
     """Generate or retrieve the intelligence report for a given date."""
     from analytics.intelligence_report import generate_daily_report
 
@@ -433,7 +469,7 @@ def get_daily_report(date: Optional[str] = None):
                 status_code=400,
                 detail="Invalid date format. Use YYYY-MM-DD.",
             ) from e
-    report = generate_daily_report(report_date=date)
+    report = generate_daily_report(report_date=date, include_demo=bool(include_demo))
     return report
 
 

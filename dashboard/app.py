@@ -185,7 +185,7 @@ SEVERITY_LABELS = {
 # ============================================================
 with tab_overview:
     try:
-        summary = _api_get("/alerts/summary")
+        summary = _api_get("/alerts/summary", params={"include_demo": 0})
         st.caption(f"Updated {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
 
         # KPI Row
@@ -244,7 +244,7 @@ with tab_overview:
 
         # Risk score distribution
         st.subheader("Risk Score Distribution")
-        alerts_for_dist = _api_get("/alerts", params={"limit": 500})
+        alerts_for_dist = _api_get("/alerts", params={"limit": 500, "include_demo": 0})
         if alerts_for_dist:
             scores = [a["risk_score"] for a in alerts_for_dist if a.get("risk_score")]
             if scores:
@@ -272,7 +272,7 @@ with tab_intel:
     try:
         report = _api_get(
             "/intelligence/daily",
-            params={"date": report_date.strftime("%Y-%m-%d")},
+            params={"date": report_date.strftime("%Y-%m-%d"), "include_demo": 0},
         )
 
         # Executive Summary
@@ -379,7 +379,7 @@ with tab_alerts:
     with filter_col3:
         min_score = st.slider("Minimum Risk Score", 0.0, 100.0, 0.0, 5.0)
 
-    params = {"limit": 100, "sort_by": "risk_score"}
+    params = {"limit": 100, "sort_by": "risk_score", "include_demo": 0}
     if severity_filter != "All":
         params["severity"] = severity_filter
     if review_filter == "Unreviewed":

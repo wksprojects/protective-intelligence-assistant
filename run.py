@@ -8,6 +8,7 @@ Usage:
     python run.py api         Start FastAPI server
     python run.py dashboard   Start Streamlit dashboard
     python run.py purge       Purge raw content older than retention window
+    python run.py purge-demo  Remove demo-seeded content from database
     python run.py demo        Load fixtures and generate demo EP artifacts
     python run.py all         Start API + Dashboard (requires separate terminal for each)
 """
@@ -28,6 +29,53 @@ from database.init_db import (
     seed_threat_actors,
 )
 from scraper import run_all_scrapers
+
+
+def purge_demo_content():
+    conn = get_connection()
+    try:
+        deleted_alerts = conn.execute(
+            """DELETE FROM alerts
+            WHERE source_id IN (
+                SELECT id FROM sources
+                WHERE source_type = 'demo'
+                   OR LOWER(name) LIKE 'demo %'
+                   OR url LIKE 'https://example.org/demo-%'
+            )"""
+        ).rowcount
+        deleted_sources = conn.execute(
+            """DELETE FROM sources
+            WHERE source_type = 'demo'
+               OR LOWER(name) LIKE 'demo %'
+               OR url LIKE 'https://example.org/demo-%'"""
+        ).rowcount
+
+        # Rebuild keyword frequency to remove demo-only spike artifacts.
+        conn.execute("DELETE FROM keyword_frequency")
+        conn.execute(
+            """INSERT INTO keyword_frequency (keyword_id, date, count)
+            SELECT a.keyword_id,
+                   date(COALESCE(a.published_at, a.created_at)) AS freq_date,
+                   COUNT(*) AS cnt
+            FROM alerts a
+            LEFT JOIN sources s ON s.id = a.source_id
+            WHERE a.keyword_id IS NOT NULL
+              AND a.duplicate_of IS NULL
+              AND COALESCE(s.source_type, '') != 'demo'
+            GROUP BY a.keyword_id, date(COALESCE(a.published_at, a.created_at))"""
+        )
+
+        deleted_reports = conn.execute("DELETE FROM intelligence_reports").rowcount
+        conn.commit()
+    finally:
+        conn.close()
+
+    print(
+        "Demo purge complete:"
+        f" alerts={max(deleted_alerts or 0, 0)}"
+        f" sources={max(deleted_sources or 0, 0)}"
+        f" reports={max(deleted_reports or 0, 0)}"
+    )
 
 
 def main():
@@ -91,6 +139,11 @@ def main():
         init_db()
         migrate_schema()
         purge_raw_content()
+
+    elif command in ("purge-demo", "purge_demo"):
+        init_db()
+        migrate_schema()
+        purge_demo_content()
 
     elif command == "demo":
         from analytics.demo_pack import run_demo_pack

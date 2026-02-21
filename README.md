@@ -56,6 +56,10 @@ If you already have a DB and just updated `config/watchlist.yaml`, run:
 ```bash
 make sync
 ```
+If demo fixtures were loaded previously and you want a clean live view:
+```bash
+make purge-demo
+```
 
 2. Start API and dashboard in separate terminals.
 ```bash

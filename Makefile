@@ -1,4 +1,4 @@
-.PHONY: demo init sync scrape api dashboard test smoke clean help
+.PHONY: demo init sync scrape api dashboard test smoke purge-demo clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -39,6 +39,9 @@ test: ## Run full pytest suite
 
 smoke: ## Quick smoke test (init → demo → compile check)
 	./scripts/smoke_test.sh
+
+purge-demo: ## Remove demo-seeded content from the database
+	python run.py purge-demo
 
 clean: ## Remove database and cached artifacts
 	rm -f database/protective_intel.db
