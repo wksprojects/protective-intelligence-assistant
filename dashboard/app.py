@@ -1,7 +1,7 @@
 import json
 import os
 import html
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 import pandas as pd
 import plotly.express as px
@@ -381,7 +381,7 @@ tabs = st.tabs([
 with tabs[0]:
     try:
         summary = fetch_summary()
-        st.caption(f"Updated {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        st.caption(f"Updated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
 
         # --- KPI Row ---
         k1, k2, k3, k4 = st.columns(4)
