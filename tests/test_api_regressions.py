@@ -45,6 +45,55 @@ def test_spikes_endpoint_rejects_invalid_date(client):
     assert response.json()["detail"] == "Invalid date format. Use YYYY-MM-DD."
 
 
+def test_health_and_ready_endpoints(client):
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    assert health.json()["status"] == "ok"
+    assert "uptime_seconds" in health.json()
+
+    ready = client.get("/readyz")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
+
+def test_metrics_endpoint_shape(client):
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    payload = response.json()
+    for key in (
+        "uptime_seconds",
+        "alerts_total",
+        "alerts_unreviewed",
+        "scrape_runs_total",
+        "audit_error_events",
+    ):
+        assert key in payload
+
+
+def test_backtest_endpoint_dashboard_payload(client):
+    response = client.get("/analytics/backtest")
+    assert response.status_code == 200
+    payload = response.json()
+    assert "cases" in payload
+    assert "naive_accuracy" in payload
+    assert "multifactor_accuracy" in payload
+    assert "improvement" in payload
+    assert isinstance(payload["cases"], list)
+
+
+def test_travel_brief_rejects_reversed_dates(client):
+    response = client.post(
+        "/briefs/travel",
+        json={
+            "destination": "San Francisco, CA",
+            "start_dt": "2026-02-24",
+            "end_dt": "2026-02-21",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "end_dt must be on or after start_dt"
+
+
 def test_daily_report_uses_requested_date_for_spike_detection(client):
     report_dt = datetime(2025, 1, 10)
     report_date = report_dt.strftime("%Y-%m-%d")

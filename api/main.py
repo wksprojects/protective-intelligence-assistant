@@ -1,11 +1,15 @@
 import json
+import logging
 import os
 import secrets
 import sys
+import time
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Security
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
+from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
@@ -25,12 +29,27 @@ from database.init_db import (
 # --- API Key Authentication ---
 # Set PI_API_KEY (preferred) or OSINT_API_KEY (legacy) to enable auth.
 # When neither is set, auth is disabled (local-only development mode).
+logger = logging.getLogger("pi_api")
+if not logger.handlers:
+    logging.basicConfig(level=os.getenv("PI_LOG_LEVEL", "INFO").upper())
+
+APP_START_TIME = time.time()
+MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _truthy_env(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _resolve_api_key():
-    return os.getenv("PI_API_KEY") or os.getenv("OSINT_API_KEY", "")
+    return (os.getenv("PI_API_KEY") or os.getenv("OSINT_API_KEY", "")).strip()
 
 
-_API_KEY = _resolve_api_key()
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _auth_required():
+    return _truthy_env(os.getenv("PI_REQUIRE_API_KEY", "0")) or bool(_resolve_api_key())
 
 
 async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)):
@@ -40,9 +59,16 @@ async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)):
     When neither is set, auth is bypassed (development mode).
     When set, all mutation endpoints require a matching X-API-Key header.
     """
-    if not _API_KEY:
-        return  # Auth disabled — development mode
-    if not api_key or not secrets.compare_digest(api_key, _API_KEY):
+    required = _auth_required()
+    expected_key = _resolve_api_key()
+    if not required:
+        return  # Auth disabled — local development mode
+    if not expected_key:
+        raise HTTPException(
+            status_code=503,
+            detail="API key enforcement enabled but PI_API_KEY/OSINT_API_KEY is not configured.",
+        )
+    if not api_key or not secrets.compare_digest(api_key, expected_key):
         raise HTTPException(
             status_code=403,
             detail="Invalid or missing API key. Set X-API-Key header.",
@@ -54,6 +80,67 @@ app = FastAPI(
     description="EP-focused REST API: protectee/facility/travel triage, ORS/TAS scoring, behavioral threat assessment, SITREPs, and explainable uncertainty.",
     version="5.0.0",
 )
+
+
+def _audit_mutation(
+    request: Request,
+    response_status: int,
+    duration_ms: float,
+):
+    if request.method not in MUTATION_METHODS:
+        return
+    if request.url.path in {"/healthz", "/readyz", "/metrics"}:
+        return
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute(
+            """INSERT INTO audit_log
+            (request_id, method, path, status_code, duration_ms, actor, client_ip)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                getattr(request.state, "request_id", ""),
+                request.method,
+                request.url.path,
+                int(response_status),
+                round(float(duration_ms), 3),
+                request.headers.get("X-Analyst", "unknown"),
+                request.client.host if request.client else None,
+            ),
+        )
+        conn.commit()
+    except Exception:
+        logger.exception("audit_log_write_failed", extra={"path": request.url.path})
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "unhandled_exception",
+            extra={"request_id": request_id, "path": request.url.path},
+        )
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error", "request_id": request_id},
+        )
+
+    duration_ms = (time.perf_counter() - start) * 1000.0
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    _audit_mutation(request, response.status_code, duration_ms)
+    return response
 
 
 # --- Models ---
@@ -115,6 +202,31 @@ class AlertResponse(BaseModel):
     matched_term: Optional[str] = None
 
 
+def _bounded_text(value: Optional[str], field_name: str, max_len: int, required: bool = False):
+    if value is None:
+        if required:
+            raise HTTPException(status_code=422, detail=f"{field_name} is required")
+        return None
+    cleaned = value.strip()
+    if required and not cleaned:
+        raise HTTPException(status_code=422, detail=f"{field_name} is required")
+    if len(cleaned) > max_len:
+        raise HTTPException(status_code=422, detail=f"{field_name} exceeds max length ({max_len})")
+    return cleaned
+
+
+def _validate_travel_window(start_dt: str, end_dt: str):
+    try:
+        start_date = datetime.strptime(start_dt, "%Y-%m-%d")
+        end_date = datetime.strptime(end_dt, "%Y-%m-%d")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail="start_dt and end_dt must use YYYY-MM-DD") from e
+    if end_date < start_date:
+        raise HTTPException(status_code=422, detail="end_dt must be on or after start_dt")
+    if (end_date - start_date).days > 45:
+        raise HTTPException(status_code=422, detail="travel window cannot exceed 45 days")
+
+
 # --- Startup ---
 
 
@@ -149,6 +261,52 @@ def startup():
 @app.get("/")
 def root():
     return {"status": "online", "service": "Protective Intelligence Assistant", "version": "5.0.0"}
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok", "uptime_seconds": round(time.time() - APP_START_TIME, 3)}
+
+
+@app.get("/readyz")
+def readyz():
+    conn = None
+    try:
+        conn = get_connection()
+        conn.execute("SELECT 1").fetchone()
+        conn.execute("SELECT COUNT(*) FROM sources").fetchone()
+        return {"status": "ready"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database not ready: {e}") from e
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+@app.get("/metrics", dependencies=[Depends(verify_api_key)])
+def metrics():
+    conn = get_connection()
+    total_alerts = conn.execute("SELECT COUNT(*) AS count FROM alerts").fetchone()["count"]
+    unreviewed = conn.execute("SELECT COUNT(*) AS count FROM alerts WHERE reviewed = 0").fetchone()["count"]
+    scrape_runs = conn.execute("SELECT COUNT(*) AS count FROM scrape_runs").fetchone()["count"]
+    last_scrape = conn.execute(
+        """SELECT started_at, completed_at, status, total_alerts
+        FROM scrape_runs
+        ORDER BY started_at DESC LIMIT 1"""
+    ).fetchone()
+    audit_errors = conn.execute(
+        "SELECT COUNT(*) AS count FROM audit_log WHERE status_code >= 400"
+    ).fetchone()["count"]
+    conn.close()
+
+    return {
+        "uptime_seconds": round(time.time() - APP_START_TIME, 3),
+        "alerts_total": total_alerts,
+        "alerts_unreviewed": unreviewed,
+        "scrape_runs_total": scrape_runs,
+        "audit_error_events": audit_errors,
+        "last_scrape": dict(last_scrape) if last_scrape else None,
+    }
 
 
 # --- ALERTS ---
@@ -594,7 +752,31 @@ def run_backtest():
     """
     from analytics.backtesting import run_backtest
 
-    return run_backtest()
+    backtest = run_backtest()
+    aggregate = backtest["aggregate"]
+    cases = []
+    for incident in backtest["incidents"]:
+        cases.append(
+            {
+                "title": incident["incident"],
+                "expected_severity": incident["expected_severity"],
+                "predicted_severity": incident["full_severity"],
+                "score": incident["full_score"],
+                "correct": incident["full_correct"],
+            }
+        )
+    return {
+        "cases": cases,
+        "naive_accuracy": aggregate["baseline_detection_rate"],
+        "multifactor_accuracy": aggregate["full_detection_rate"],
+        "improvement": round(
+            aggregate["full_detection_rate"] - aggregate["baseline_detection_rate"],
+            4,
+        ),
+        "baseline_mean_score": aggregate["baseline_mean_score"],
+        "full_mean_score": aggregate["full_mean_score"],
+        "details": backtest,
+    }
 
 
 @app.get("/analytics/duplicates", dependencies=[Depends(verify_api_key)])
@@ -679,20 +861,28 @@ def get_pois(active_only: int = Query(default=1, ge=0, le=1)):
 
 @app.post("/pois", dependencies=[Depends(verify_api_key)])
 def create_poi(body: POICreate):
+    poi_name = _bounded_text(body.name, "name", 120, required=True)
+    poi_org = _bounded_text(body.org, "org", 120)
+    poi_role = _bounded_text(body.role, "role", 120)
+    cleaned_aliases = []
+    for alias in body.aliases:
+        alias_text = _bounded_text(alias, "alias", 120)
+        if alias_text:
+            cleaned_aliases.append(alias_text)
+    if len(cleaned_aliases) > 25:
+        raise HTTPException(status_code=422, detail="aliases exceeds max count (25)")
+
     conn = get_connection()
     conn.execute(
         "INSERT INTO pois (name, org, role, sensitivity, active) VALUES (?, ?, ?, ?, 1)",
-        (body.name.strip(), body.org, body.role, max(1, min(int(body.sensitivity), 5))),
+        (poi_name, poi_org, poi_role, max(1, min(int(body.sensitivity), 5))),
     )
     poi_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-    alias_values = body.aliases or [body.name]
+    alias_values = cleaned_aliases or [poi_name]
     for alias in alias_values:
-        alias_text = alias.strip()
-        if not alias_text:
-            continue
         conn.execute(
             "INSERT INTO poi_aliases (poi_id, alias, alias_type, active) VALUES (?, ?, ?, 1)",
-            (poi_id, alias_text, "name"),
+            (poi_id, alias, "name"),
         )
     conn.commit()
     poi = conn.execute("SELECT * FROM pois WHERE id = ?", (poi_id,)).fetchone()
@@ -827,12 +1017,22 @@ def get_protected_location_alerts(
 
 @app.post("/locations/protected", dependencies=[Depends(verify_api_key)])
 def create_protected_location(body: ProtectedLocationCreate):
+    loc_name = _bounded_text(body.name, "name", 120, required=True)
+    loc_type = _bounded_text(body.type, "type", 40)
+    loc_notes = _bounded_text(body.notes, "notes", 500)
+    if body.lat is not None and not (-90.0 <= float(body.lat) <= 90.0):
+        raise HTTPException(status_code=422, detail="lat must be between -90 and 90")
+    if body.lon is not None and not (-180.0 <= float(body.lon) <= 180.0):
+        raise HTTPException(status_code=422, detail="lon must be between -180 and 180")
+    if float(body.radius_miles) <= 0.0 or float(body.radius_miles) > 100.0:
+        raise HTTPException(status_code=422, detail="radius_miles must be > 0 and <= 100")
+
     conn = get_connection()
     conn.execute(
         """INSERT INTO protected_locations
         (name, type, lat, lon, radius_miles, active, notes)
         VALUES (?, ?, ?, ?, ?, 1, ?)""",
-        (body.name.strip(), body.type, body.lat, body.lon, body.radius_miles, body.notes),
+        (loc_name, loc_type, body.lat, body.lon, body.radius_miles, loc_notes),
     )
     location_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     row = conn.execute(
@@ -883,8 +1083,11 @@ def get_map_points(
 def create_travel_brief(body: TravelBriefRequest):
     from analytics.travel_brief import generate_travel_brief
 
+    destination = _bounded_text(body.destination, "destination", 180, required=True)
+    _validate_travel_window(body.start_dt, body.end_dt)
+
     return generate_travel_brief(
-        destination=body.destination,
+        destination=destination,
         start_dt=body.start_dt,
         end_dt=body.end_dt,
         poi_id=body.poi_id,
@@ -910,6 +1113,16 @@ def list_travel_briefs(limit: int = Query(default=20, ge=1, le=100)):
 
 @app.post("/alerts/{alert_id}/disposition", dependencies=[Depends(verify_api_key)])
 def create_disposition(alert_id: int, body: DispositionRequest):
+    disposition_status = _bounded_text(body.status, "status", 32, required=True)
+    allowed_statuses = {"open", "monitoring", "escalated", "closed", "false_positive", "true_positive"}
+    if disposition_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=422,
+            detail=f"status must be one of: {', '.join(sorted(allowed_statuses))}",
+        )
+    rationale = _bounded_text(body.rationale, "rationale", 2000)
+    analyst_user = _bounded_text(body.user or "analyst", "user", 80, required=True)
+
     conn = get_connection()
     alert = conn.execute("SELECT id FROM alerts WHERE id = ?", (alert_id,)).fetchone()
     if not alert:
@@ -919,7 +1132,7 @@ def create_disposition(alert_id: int, body: DispositionRequest):
         """INSERT INTO dispositions
         (alert_id, status, rationale, user, created_at)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)""",
-        (alert_id, body.status.strip(), body.rationale, body.user),
+        (alert_id, disposition_status, rationale, analyst_user),
     )
     disposition_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     row = conn.execute("SELECT * FROM dispositions WHERE id = ?", (disposition_id,)).fetchone()
@@ -941,17 +1154,20 @@ def get_keywords():
 
 @app.post("/keywords", dependencies=[Depends(verify_api_key)])
 def add_keyword(keyword: KeywordCreate):
+    term = _bounded_text(keyword.term, "term", 120, required=True)
+    category = _bounded_text(keyword.category, "category", 60, required=True)
+
     conn = get_connection()
     try:
         conn.execute(
             "INSERT INTO keywords (term, category, weight) VALUES (?, ?, ?)",
-            (keyword.term, keyword.category, keyword.weight),
+            (term, category, keyword.weight),
         )
         conn.commit()
     except Exception:
         conn.close()
         raise HTTPException(status_code=409, detail="Keyword already exists")
-    new_keyword = conn.execute("SELECT * FROM keywords WHERE term = ?", (keyword.term,)).fetchone()
+    new_keyword = conn.execute("SELECT * FROM keywords WHERE term = ?", (term,)).fetchone()
     conn.close()
     return dict(new_keyword)
 
@@ -1077,6 +1293,16 @@ def get_threat_subjects(
 @app.post("/threat-subjects", dependencies=[Depends(verify_api_key)])
 def create_threat_subject(body: ThreatSubjectCreate):
     """Register a new threat subject for behavioral tracking."""
+    subject_name = _bounded_text(body.name, "name", 120, required=True)
+    subject_notes = _bounded_text(body.notes, "notes", 1000)
+    alias_list = []
+    for alias in body.aliases:
+        alias_text = _bounded_text(alias, "alias", 120)
+        if alias_text:
+            alias_list.append(alias_text)
+    if len(alias_list) > 30:
+        raise HTTPException(status_code=422, detail="aliases exceeds max count (30)")
+
     conn = get_connection()
 
     if body.linked_poi_id is not None:
@@ -1091,12 +1317,12 @@ def create_threat_subject(body: ThreatSubjectCreate):
         (name, aliases, linked_poi_id, first_seen, last_seen, status, risk_tier, notes)
         VALUES (?, ?, ?, ?, ?, 'active', 'LOW', ?)""",
         (
-            body.name.strip(),
-            json.dumps([a.strip() for a in body.aliases if a.strip()]),
+            subject_name,
+            json.dumps(alias_list),
             body.linked_poi_id,
             now,
             now,
-            body.notes,
+            subject_notes,
         ),
     )
     subject_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -1151,6 +1377,10 @@ def assess_threat_subject(subject_id: int, body: ThreatSubjectAssessmentCreate):
         "last_resort": body.last_resort,
         "directly_communicated_threat": body.directly_communicated_threat,
     }
+    for name, value in indicators.items():
+        if value < 0.0 or value > 1.0:
+            conn.close()
+            raise HTTPException(status_code=422, detail=f"{name} must be between 0.0 and 1.0")
 
     result = upsert_assessment(
         conn,

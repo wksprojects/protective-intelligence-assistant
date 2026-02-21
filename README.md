@@ -76,8 +76,15 @@ make sync       # upserts config changes into existing DB
 5. Optional: enable API auth in non-local environments.
 ```bash
 export PI_API_KEY="change-me"
+export PI_REQUIRE_API_KEY=1
 ```
-If set, include `X-API-Key: <value>` on protected endpoints.
+If `PI_REQUIRE_API_KEY=1`, requests are rejected unless `X-API-Key` matches.
+
+6. Generate the quantitative evaluation memo (precision/recall, FP reduction, analyst-time savings):
+```bash
+make evaluate
+```
+Memo output: `docs/evaluation_memo.md`
 
 ---
 
@@ -161,7 +168,7 @@ Monte Carlo engine in `analytics/uncertainty.py`:
 | `sitreps` | Situation reports |
 
 ### Supporting Tables
-`alerts` · `alert_scores` · `alert_entities` · `sources` · `keywords` · `keyword_frequency` · `threat_actors` · `intelligence_reports` · `travel_briefs` · `dispositions` · `retention_log` · `geocode_cache` · `scrape_runs` · `evaluation_metrics`
+`alerts` · `alert_scores` · `alert_entities` · `sources` · `keywords` · `keyword_frequency` · `threat_actors` · `intelligence_reports` · `travel_briefs` · `dispositions` · `retention_log` · `audit_log` · `geocode_cache` · `scrape_runs` · `evaluation_metrics`
 
 ---
 
@@ -225,6 +232,13 @@ Monte Carlo engine in `analytics/uncertainty.py`:
 | GET | `/analytics/graph` | Link-analysis graph |
 | GET | `/analytics/escalation-tiers` | Configured escalation thresholds |
 | POST | `/scrape/social-media` | Trigger social media monitor |
+
+### Operations / Reliability
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/healthz` | Liveness probe + uptime |
+| GET | `/readyz` | Readiness probe (DB checks) |
+| GET | `/metrics` | Operational counters (requires API key) |
 
 ### Example Calls
 

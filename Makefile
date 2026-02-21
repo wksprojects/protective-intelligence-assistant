@@ -1,4 +1,4 @@
-.PHONY: demo init sync scrape api dashboard test smoke purge-demo clean help
+.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -43,9 +43,13 @@ smoke: ## Quick smoke test (init → demo → compile check)
 purge-demo: ## Remove demo-seeded content from the database
 	python run.py purge-demo
 
+evaluate: ## Generate reproducible quantitative evaluation memo
+	python scripts/generate_evaluation_memo.py
+
 clean: ## Remove database and cached artifacts
 	rm -f database/protective_intel.db
 	rm -f database/osint_monitor.db
+	rm -f docs/evaluation_memo.md
 	rm -f docs/demo_daily_report.md docs/demo_travel_brief.md
 	rm -f docs/protectee_view.svg docs/map_view.svg
 	@echo "Cleaned database and demo artifacts."

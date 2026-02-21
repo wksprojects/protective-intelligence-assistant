@@ -9,6 +9,7 @@ Usage:
     python run.py dashboard   Start Streamlit dashboard
     python run.py purge       Purge raw content older than retention window
     python run.py purge-demo  Remove demo-seeded content from database
+    python run.py evaluate    Generate quantitative evaluation memo
     python run.py demo        Load fixtures and generate demo EP artifacts
     python run.py all         Start API + Dashboard (requires separate terminal for each)
 """
@@ -144,6 +145,9 @@ def main():
         init_db()
         migrate_schema()
         purge_demo_content()
+
+    elif command == "evaluate":
+        subprocess.run([sys.executable, "scripts/generate_evaluation_memo.py"], check=True)
 
     elif command == "demo":
         from analytics.demo_pack import run_demo_pack

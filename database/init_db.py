@@ -390,6 +390,17 @@ def migrate_schema():
             rows_affected INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT,
+            method TEXT NOT NULL,
+            path TEXT NOT NULL,
+            status_code INTEGER NOT NULL,
+            duration_ms REAL DEFAULT 0.0,
+            actor TEXT,
+            client_ip TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         CREATE TABLE IF NOT EXISTS geocode_cache (
             query TEXT PRIMARY KEY,
             lat REAL NOT NULL,

@@ -2,98 +2,147 @@
 Backtesting Framework — Golden Dataset Validation.
 
 Compares the multi-factor scoring engine against a naive baseline using
-8 known historical incidents. Validates that the full scoring model
+protective-intelligence scenarios. Validates that the full scoring model
 (keyword weight x frequency factor x source credibility x recency)
 outperforms simple keyword weight alone.
 
 Baseline:  score = keyword_weight x 20 (no frequency, no credibility, no recency)
-Full model: compute_risk_score() with simulated high-credibility source + spike + recency
+Full model: compute_risk_score() with source credibility, frequency, and recency context.
 """
 
 from analytics.risk_scoring import compute_risk_score, score_to_severity
 
-# Golden dataset: known incidents with expected severity
-# Each entry simulates a realistic scoring scenario
+# Golden dataset: EP scenarios with expected severity outcomes.
 GOLDEN_DATASET = [
     {
-        "name": "SolarWinds Supply Chain Attack",
-        "keyword": "supply chain attack",
-        "keyword_weight": 4.0,
+        "name": "Direct Threat to CEO Before Town Hall",
+        "keyword": "death threat",
+        "keyword_weight": 4.8,
         "expected_severity": "critical",
-        "source_credibility": 1.0,  # CISA reported
-        "frequency_factor": 3.5,  # Massive spike
-        "recency_hours": 2.0,  # Very recent
-        "description": "Nation-state supply chain compromise of SolarWinds Orion",
+        "source_credibility": 0.95,
+        "frequency_factor": 2.2,
+        "recency_hours": 2.0,
+        "description": "Named death threat references upcoming executive appearance.",
     },
     {
-        "name": "Log4Shell (CVE-2021-44228)",
-        "keyword": "remote code execution",
-        "keyword_weight": 4.5,
-        "expected_severity": "critical",
-        "source_credibility": 1.0,
-        "frequency_factor": 4.0,  # Extreme spike
-        "recency_hours": 1.0,
-        "description": "Critical RCE in Apache Log4j affecting millions of systems",
-    },
-    {
-        "name": "MOVEit Transfer Exploitation (Cl0p)",
-        "keyword": "zero day",
-        "keyword_weight": 5.0,
-        "expected_severity": "critical",
-        "source_credibility": 0.85,
-        "frequency_factor": 3.0,
-        "recency_hours": 6.0,
-        "description": "Mass exploitation of MOVEit file transfer zero-day by Cl0p",
-    },
-    {
-        "name": "CrowdStrike Global Outage",
-        "keyword": "exploitation",
-        "keyword_weight": 3.5,
+        "name": "Swatting Call to Headquarters",
+        "keyword": "swatting",
+        "keyword_weight": 3.8,
         "expected_severity": "high",
         "source_credibility": 0.7,
-        "frequency_factor": 2.0,
-        "recency_hours": 6.0,
-        "description": "Faulty CrowdStrike update causing widespread system failures",
-    },
-    {
-        "name": "Colonial Pipeline Ransomware",
-        "keyword": "ransomware",
-        "keyword_weight": 4.5,
-        "expected_severity": "critical",
-        "source_credibility": 1.0,
-        "frequency_factor": 3.0,
+        "frequency_factor": 1.3,
         "recency_hours": 4.0,
-        "description": "DarkSide ransomware attack on critical infrastructure",
+        "description": "Credible swatting incident targeting HQ switchboard.",
     },
     {
-        "name": "Kaseya VSA Supply Chain",
-        "keyword": "supply chain attack",
-        "keyword_weight": 4.0,
-        "expected_severity": "critical",
-        "source_credibility": 0.85,
-        "frequency_factor": 2.5,
+        "name": "Suspicious Drone Near Residence",
+        "keyword": "drone surveillance",
+        "keyword_weight": 3.4,
+        "expected_severity": "high",
+        "source_credibility": 0.55,
+        "frequency_factor": 1.2,
+        "recency_hours": 6.0,
+        "description": "Single-source drone observation near protectee residence.",
+    },
+    {
+        "name": "Violent Rhetoric Around Event Protest",
+        "keyword": "protest violence",
+        "keyword_weight": 3.6,
+        "expected_severity": "high",
+        "source_credibility": 0.8,
+        "frequency_factor": 1.3,
         "recency_hours": 8.0,
-        "description": "REvil ransomware via Kaseya VSA supply chain compromise",
+        "description": "Escalating protest chatter includes explicit disruption intent.",
     },
     {
-        "name": "ProxyLogon (Exchange Server)",
-        "keyword": "zero day",
-        "keyword_weight": 5.0,
-        "expected_severity": "critical",
-        "source_credibility": 1.0,
-        "frequency_factor": 3.5,
+        "name": "Permitted Demonstration, No Threat Language",
+        "keyword": "protest",
+        "keyword_weight": 3.2,
+        "expected_severity": "low",
+        "source_credibility": 0.5,
+        "frequency_factor": 0.9,
+        "recency_hours": 18.0,
+        "description": "Routine permitted rally with no violent indicators.",
+    },
+    {
+        "name": "State Dept Level 3 at Planned Destination",
+        "keyword": "travel advisory level 3",
+        "keyword_weight": 3.0,
+        "expected_severity": "high",
+        "source_credibility": 0.9,
+        "frequency_factor": 1.4,
         "recency_hours": 12.0,
-        "description": "Multiple Exchange Server zero-days exploited by Hafnium",
+        "description": "Destination advisory increases travel risk for planned movement.",
     },
     {
-        "name": "PrintNightmare (CVE-2021-34527)",
-        "keyword": "privilege escalation",
+        "name": "Local Pickpocket Advisory",
+        "keyword": "petty crime",
+        "keyword_weight": 2.0,
+        "expected_severity": "low",
+        "source_credibility": 0.8,
+        "frequency_factor": 1.1,
+        "recency_hours": 24.0,
+        "description": "General petty crime guidance with no protectee targeting.",
+    },
+    {
+        "name": "Vague Social Mention of Executive Schedule",
+        "keyword": "executive mention",
         "keyword_weight": 3.5,
+        "expected_severity": "low",
+        "source_credibility": 0.3,
+        "frequency_factor": 0.8,
+        "recency_hours": 4.0,
+        "description": "Unverified chatter, no direct threat or location specifics.",
+    },
+    {
+        "name": "Doxxing Post with Residential Address",
+        "keyword": "doxxing",
+        "keyword_weight": 4.6,
+        "expected_severity": "critical",
+        "source_credibility": 0.75,
+        "frequency_factor": 1.5,
+        "recency_hours": 3.0,
+        "description": "Address disclosure and targeting language against protectee.",
+    },
+    {
+        "name": "Anonymous Bomb Threat, Low Credibility Source",
+        "keyword": "bomb threat",
+        "keyword_weight": 4.5,
+        "expected_severity": "high",
+        "source_credibility": 0.35,
+        "frequency_factor": 1.0,
+        "recency_hours": 2.0,
+        "description": "Single low-confidence threat email with no corroboration.",
+    },
+    {
+        "name": "Insider Grievance with Target Date",
+        "keyword": "workplace violence",
+        "keyword_weight": 4.0,
         "expected_severity": "high",
         "source_credibility": 0.7,
-        "frequency_factor": 1.5,
-        "recency_hours": 18.0,
-        "description": "Windows Print Spooler RCE/privilege escalation vulnerability",
+        "frequency_factor": 1.4,
+        "recency_hours": 5.0,
+        "description": "Identified insider expresses grievance and time-bound intent.",
+    },
+    {
+        "name": "Rumor of Disruption, No Corroboration",
+        "keyword": "possible disruption",
+        "keyword_weight": 3.6,
+        "expected_severity": "low",
+        "source_credibility": 0.25,
+        "frequency_factor": 0.8,
+        "recency_hours": 10.0,
+        "description": "Low-confidence rumor with no supporting operational evidence.",
+    },
+    {
+        "name": "Satirical Post Reposting Aggressive Language",
+        "keyword": "violent rhetoric",
+        "keyword_weight": 3.7,
+        "expected_severity": "low",
+        "source_credibility": 0.2,
+        "frequency_factor": 0.7,
+        "recency_hours": 36.0,
+        "description": "Quoted rhetoric with satire indicators and no targeting evidence.",
     },
 ]
 
