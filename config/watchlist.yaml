@@ -1,95 +1,21 @@
 keywords:
-  protective_intel:
-    - term: "doxxing"
-      weight: 4.0
-    - term: "swatting"
-      weight: 4.2
-    - term: "stalking"
-      weight: 3.8
-    - term: "extortion"
-      weight: 4.4
-    - term: "impersonation"
-      weight: 3.6
-    - term: "kidnapping"
-      weight: 5.0
-    - term: "bomb threat"
-      weight: 5.0
-    - term: "active shooter"
-      weight: 5.0
-    - term: "death threat"
-      weight: 5.0
-    - term: "threat to CEO"
-      weight: 4.8
-
-  protest_disruption:
-    - term: "protest"
-      weight: 2.1
-    - term: "demonstration"
-      weight: 2.0
-    - term: "march"
-      weight: 1.8
-    - term: "blockade"
-      weight: 2.6
-    - term: "sit-in"
-      weight: 2.2
-    - term: "picket"
-      weight: 2.0
-    - term: "boycott"
-      weight: 1.9
-    - term: "shut down"
-      weight: 2.5
-
-  travel_risk:
-    - term: "advisory"
-      weight: 2.3
-    - term: "curfew"
-      weight: 3.2
-    - term: "unrest"
-      weight: 3.4
-    - term: "strike"
-      weight: 2.4
-    - term: "airport disruption"
-      weight: 2.8
-    - term: "outbreak"
-      weight: 3.6
-    - term: "disease"
-      weight: 2.7
-
-  insider_workplace:
-    - term: "termination"
-      weight: 2.3
-    - term: "disgruntled"
-      weight: 3.3
-    - term: "restraining order"
-      weight: 4.1
-    - term: "harassment"
-      weight: 2.5
-    - term: "threats"
-      weight: 3.8
-
-  ioc:
-    - term: "cve-"
-      weight: 1.2
-    - term: " ip "
-      weight: 1.1
-    - term: "hash"
-      weight: 1.1
-    - term: "domain"
-      weight: 1.1
-
-cti_optional:
-  threat_actor:
-    - "APT29"
-    - "APT28"
+  threat_actors:
+    - "APT"
+    - "threat actor"
+    - "nation state"
     - "advanced persistent threat"
 
   malware:
     - "ransomware"
     - "malware"
+    - "trojan"
     - "botnet"
+    - "spyware"
 
-  vulnerability:
+  vulnerabilities:
     - "zero day"
+    - "CVE"
+    - "exploitation"
     - "remote code execution"
     - "privilege escalation"
 
@@ -98,72 +24,31 @@ cti_optional:
     - "credential leak"
     - "phishing"
     - "DDoS"
-
-pois:
-  - name: "Jane Doe"
-    org: "Acme Corporation"
-    role: "Chief Executive Officer"
-    sensitivity: 5
-    aliases:
-      - "Jane Doe"
-      - "J. Doe"
-  - name: "Michael Reyes"
-    org: "Acme Corporation"
-    role: "Chief Security Officer"
-    sensitivity: 4
-    aliases:
-      - "Michael Reyes"
-      - "Mike Reyes"
-
-protected_locations:
-  - name: "Acme HQ"
-    type: "hq"
-    lat: 37.7749
-    lon: -122.4194
-    radius_miles: 10
-    notes: "Primary headquarters"
-  - name: "Acme NYC Office"
-    type: "office"
-    lat: 40.7128
-    lon: -74.0060
-    radius_miles: 8
-    notes: "Regional office"
-
-events:
-  - name: "Executive Town Hall"
-    type: "corporate_event"
-    start_dt: "2026-03-15 17:00:00"
-    end_dt: "2026-03-15 20:00:00"
-    city: "San Francisco"
-    country: "US"
-    venue: "Acme HQ"
-    lat: 37.7749
-    lon: -122.4194
-    poi_name: "Jane Doe"
-    notes: "Leadership all-hands"
+    - "supply chain attack"
+    - "insider threat"
+    - "cryptocurrency fraud"
+    - "dark web"
+    - "critical infrastructure"
+    - "election interference"
 
 sources:
   rss:
-    - name: "State Dept Travel Alerts/Warnings"
-      url: "https://travel.state.gov/_res/rss/TAsTWs.xml"
-    - name: "CDC Travel Health Notices"
-      url: "https://wwwnc.cdc.gov/travel/rss/notices.xml"
-    - name: "WHO Disease Outbreak News"
-      url: "https://www.who.int/feeds/entity/csr/don/en/rss.xml"
-    - name: "GDELT PI/EP Watch"
-      gdelt_query: '("threat to CEO" OR swatting OR doxxing OR "death threat" OR kidnapping OR "bomb threat" OR protest OR unrest) AND (executive OR CEO OR headquarters OR office OR venue)'
-      credibility_score: 0.6
-    - name: "GDELT Travel/Unrest Watch"
-      gdelt_query: '(travel advisory OR curfew OR unrest OR strike OR airport disruption OR outbreak) AND (city OR airport OR venue)'
-      credibility_score: 0.6
     - name: "CISA Alerts"
       url: "https://www.cisa.gov/news.xml"
     - name: "Krebs on Security"
       url: "https://krebsonsecurity.com/feed/"
+    - name: "BleepingComputer"
+      url: "https://www.bleepingcomputer.com/feed/"
+    - name: "The Hacker News"
+      url: "https://feeds.feedburner.com/TheHackersNews"
+    - name: "Dark Reading"
+      url: "https://www.darkreading.com/rss.xml"
 
   reddit:
     - name: "r/cybersecurity"
       url: "https://www.reddit.com/r/cybersecurity/.rss"
+    - name: "r/netsec"
+      url: "https://www.reddit.com/r/netsec/.rss"
     - name: "r/threatintel"
       url: "https://www.reddit.com/r/threatintel/.rss"
 
@@ -174,21 +59,21 @@ sources:
 escalation_tiers:
   - threshold: 85
     label: "CRITICAL"
-    notify: ["detail_leader", "intel_manager"]
-    action: "Immediate briefing required. Detail leader notified."
+    notify: ["intel_manager", "soc_lead"]
+    action: "Immediate escalation and analyst review."
     response_window: "30 minutes"
   - threshold: 65
     label: "ELEVATED"
     notify: ["intel_analyst"]
-    action: "Enhanced monitoring. Assess within 4 hours."
+    action: "High-priority review in current shift."
     response_window: "4 hours"
   - threshold: 40
     label: "ROUTINE"
     notify: []
-    action: "Log and monitor. Include in next daily report."
+    action: "Queue for standard triage."
     response_window: "24 hours"
   - threshold: 0
     label: "LOW"
     notify: []
-    action: "No immediate action. Archive for trend analysis."
+    action: "Track for trend context."
     response_window: "N/A"

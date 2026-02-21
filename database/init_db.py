@@ -897,16 +897,8 @@ def seed_default_pois():
         pois = watchlist["pois"]
         seed_origin = f"config ({watchlist['path']})"
     else:
-        pois = [
-            {
-                "name": "Jane Doe",
-                "org": "Acme Corporation",
-                "role": "Chief Executive Officer",
-                "sensitivity": 5,
-                "aliases": ["Jane Doe", "J. Doe"],
-            }
-        ]
-        seed_origin = "hardcoded defaults"
+        pois = []
+        seed_origin = "none"
 
     for poi in pois:
         existing = conn.execute("SELECT id FROM pois WHERE name = ?", (poi["name"],)).fetchone()
