@@ -425,6 +425,35 @@ make smoke   # smoke test
 
 ---
 
+## Limitations & Next Steps
+
+### Evaluation Scope
+- Current benchmark is **35 synthetic scenarios** (initial benchmark). 3 of 11 misclassifications
+  are label-ambiguous boundary cases (analyst-judgment calls, not model failures).
+  Full error analysis: [`docs/error_analysis.md`](docs/error_analysis.md).
+- Both models lack **geographic/contextual relevance** — a kidnapping report in a country with no
+  protectee presence still scores high on keyword weight alone.
+
+### ML Production Path
+- ML classifier runs as an evaluation tool only; it does not yet score alerts in the operational pipeline.
+- Planned rollout: shadow scoring → disagreement queue → analyst adjudication → retraining → promotion.
+  Full design: [`docs/ml_rollout.md`](docs/ml_rollout.md).
+
+### Scale (v2 Architecture)
+Current stack (SQLite, single-process) is appropriate for local analysis and portfolio demonstration.
+Production migration path:
+
+| Component | Current | v2 Target |
+|---|---|---|
+| Database | SQLite | PostgreSQL + connection pooling |
+| Task queue | Synchronous `make scrape` | Celery / ARQ workers with scheduled scrapes |
+| ML retraining | Manual (`make evaluate`) | Scheduled batch retrain with accuracy gating |
+| Observability | `audit_log` table, `/metrics` endpoint | Prometheus metrics + Grafana dashboards |
+| Deployment | Local Makefile | Docker Compose → Kubernetes (API + workers + dashboard) |
+| Model serving | In-process sklearn `predict()` | Separate model service with A/B traffic split |
+
+---
+
 ## Notes
 
 - This is an **analyst-assistance tool**, not an autonomous enforcement or SaaS platform.
