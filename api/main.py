@@ -5,6 +5,7 @@ import secrets
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 
@@ -75,10 +76,44 @@ async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)):
         )
 
 
+def startup():
+    """Init DB, migrate schema, seed defaults on first run."""
+    init_db()
+    migrate_schema()
+    conn = get_connection()
+    source_count = conn.execute("SELECT COUNT(*) AS count FROM sources").fetchone()["count"]
+    keyword_count = conn.execute("SELECT COUNT(*) AS count FROM keywords").fetchone()["count"]
+    actor_count = conn.execute("SELECT COUNT(*) AS count FROM threat_actors").fetchone()["count"]
+    poi_count = conn.execute("SELECT COUNT(*) AS count FROM pois").fetchone()["count"]
+    loc_count = conn.execute("SELECT COUNT(*) AS count FROM protected_locations").fetchone()["count"]
+    event_count = conn.execute("SELECT COUNT(*) AS count FROM events").fetchone()["count"]
+    conn.close()
+
+    if source_count == 0:
+        seed_default_sources()
+    if keyword_count == 0:
+        seed_default_keywords()
+    if poi_count == 0:
+        seed_default_pois()
+    if loc_count == 0:
+        seed_default_protected_locations()
+    if event_count == 0:
+        seed_default_events()
+    if actor_count == 0:
+        seed_threat_actors()
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    startup()
+    yield
+
+
 app = FastAPI(
     title="Protective Intelligence Assistant API",
     description="EP-focused REST API: protectee/facility/travel triage, ORS/TAS scoring, behavioral threat assessment, SITREPs, and explainable uncertainty.",
     version="5.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -225,37 +260,6 @@ def _validate_travel_window(start_dt: str, end_dt: str):
         raise HTTPException(status_code=422, detail="end_dt must be on or after start_dt")
     if (end_date - start_date).days > 45:
         raise HTTPException(status_code=422, detail="travel window cannot exceed 45 days")
-
-
-# --- Startup ---
-
-
-@app.on_event("startup")
-def startup():
-    init_db()
-    migrate_schema()
-    conn = get_connection()
-    source_count = conn.execute("SELECT COUNT(*) AS count FROM sources").fetchone()["count"]
-    keyword_count = conn.execute("SELECT COUNT(*) AS count FROM keywords").fetchone()["count"]
-    actor_count = conn.execute("SELECT COUNT(*) AS count FROM threat_actors").fetchone()["count"]
-    poi_count = conn.execute("SELECT COUNT(*) AS count FROM pois").fetchone()["count"]
-    loc_count = conn.execute("SELECT COUNT(*) AS count FROM protected_locations").fetchone()["count"]
-    event_count = conn.execute("SELECT COUNT(*) AS count FROM events").fetchone()["count"]
-    conn.close()
-
-    # Seed only on first-run empty tables; do not overwrite analyst-tuned values.
-    if source_count == 0:
-        seed_default_sources()
-    if keyword_count == 0:
-        seed_default_keywords()
-    if poi_count == 0:
-        seed_default_pois()
-    if loc_count == 0:
-        seed_default_protected_locations()
-    if event_count == 0:
-        seed_default_events()
-    if actor_count == 0:
-        seed_threat_actors()
 
 
 @app.get("/")
@@ -776,6 +780,36 @@ def run_backtest():
         "baseline_mean_score": aggregate["baseline_mean_score"],
         "full_mean_score": aggregate["full_mean_score"],
         "details": backtest,
+    }
+
+
+@app.get("/analytics/ml-comparison", dependencies=[Depends(verify_api_key)])
+def ml_comparison():
+    """
+    Compare ML classifier vs rules-based scoring on golden EP scenarios.
+    ML: TF-IDF + numeric features → LogisticRegression, evaluated with LOO-CV.
+    """
+    from analytics.backtesting import run_backtest as _run_backtest
+    from analytics.ml_classifier import evaluate_loo
+
+    bt = _run_backtest()
+    ml = evaluate_loo()
+
+    return {
+        "n_scenarios": ml["n_scenarios"],
+        "rules": {
+            "accuracy": bt["aggregate"]["full_detection_rate"],
+            "baseline_accuracy": bt["aggregate"]["baseline_detection_rate"],
+        },
+        "ml_classifier": {
+            "accuracy": ml["accuracy"],
+            "precision": ml["precision"],
+            "recall": ml["recall"],
+            "f1": ml["f1"],
+            "false_positives": ml["fp"],
+            "method": ml["method"],
+        },
+        "predictions": ml["predictions"],
     }
 
 

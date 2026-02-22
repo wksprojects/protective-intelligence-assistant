@@ -81,6 +81,21 @@ def test_backtest_endpoint_dashboard_payload(client):
     assert isinstance(payload["cases"], list)
 
 
+def test_ml_comparison_endpoint(client):
+    response = client.get("/analytics/ml-comparison")
+    assert response.status_code == 200
+    payload = response.json()
+    assert "n_scenarios" in payload
+    assert payload["n_scenarios"] >= 30
+    assert "rules" in payload
+    assert "ml_classifier" in payload
+    ml = payload["ml_classifier"]
+    assert 0.0 <= ml["accuracy"] <= 1.0
+    assert 0.0 <= ml["precision"] <= 1.0
+    assert "predictions" in payload
+    assert len(payload["predictions"]) == payload["n_scenarios"]
+
+
 def test_travel_brief_rejects_reversed_dates(client):
     response = client.post(
         "/briefs/travel",

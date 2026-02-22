@@ -15,9 +15,15 @@ SITREPs, behavioral threat assessments, and escalation recommendations.
 
 ## Screenshots
 
-| Situation Overview | Alert Triage | Protectee Risk |
-|---|---|---|
-| ![Overview](docs/screenshots/overview.png) | ![Triage](docs/screenshots/triage.png) | ![Risk](docs/screenshots/protectee_risk.png) |
+| Situation Overview | Alert Triage |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![Triage](docs/screenshots/triage.png) |
+
+| Protectee Risk | Intelligence Analysis |
+|---|---|
+| ![Risk](docs/screenshots/protectee_risk.png) | ![Intelligence Analysis](docs/screenshots/intelligence_analysis.png) |
+
+Protectee Risk screenshot is shown in a cold-start state (`TAS`/`Tier` dashes in roster); those fields populate after POI-linked alerts are assessed.
 
 ---
 
@@ -208,16 +214,18 @@ Monte Carlo engine in `analytics/uncertainty.py`:
 ### Model Evaluation
 
 Reproducible via `make evaluate` → [`docs/evaluation_memo.md`](docs/evaluation_memo.md).
+Initial benchmark: 35 EP scenarios, LOO-CV for ML classifier.
 
-| Metric | Naive Baseline | Multi-Factor Model |
-|---|---:|---:|
-| Severity Accuracy | 38.5% | **76.9%** |
-| Escalation Precision | 0.667 | **1.000** |
-| Escalation Recall | 0.750 | 0.750 |
-| Escalation F1 | 0.706 | **0.857** |
-| False Positives | 3 | **0** |
+| Metric | Naive Baseline | Multi-Factor (Rules) | ML Classifier (LOO-CV) |
+|---|---:|---:|---:|
+| Severity Accuracy | 51.4% | **68.6%** | **68.6%** |
+| Escalation Precision | 0.619 | **0.867** | **0.867** |
+| Escalation Recall | 0.812 | 0.812 | 0.812 |
+| Escalation F1 | 0.703 | **0.839** | **0.839** |
+| False Positives | 8 | **2** | **2** |
 
-Projected time saved: **23.1 analyst-hours per 1,000 triaged alerts**.
+ML classifier: TF-IDF(alert text) + numeric features → Logistic Regression.
+Rules and ML achieve identical aggregate metrics but make different errors on 12/35 scenarios, suggesting ensemble potential. See [`analytics/ml_classifier.py`](analytics/ml_classifier.py).
 
 ---
 
