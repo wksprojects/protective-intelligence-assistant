@@ -189,6 +189,63 @@
       "expected_linked_pairs": []
     },
     {
+      "id": "ambiguous_cross_source_term_collision",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "tg_6",
+          "source_type": "telegram",
+          "title": "Downtown protest logistics note",
+          "content": "Crowd control planning around city hall route.",
+          "matched_term": "protest",
+          "hours_ago": 6
+        },
+        {
+          "id": "rd_4",
+          "source_type": "reddit",
+          "title": "Fans protest ticket prices after game",
+          "content": "Sports thread on ticket pricing complaints.",
+          "matched_term": "protest",
+          "hours_ago": 5
+        }
+      ],
+      "expected_linked_pairs": []
+    },
+    {
+      "id": "actor_alias_normalization_miss",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "rss_5",
+          "source_type": "rss",
+          "title": "Nightwolf swatting post detected",
+          "content": "Actor references office access and swatting concepts.",
+          "matched_term": "swatting",
+          "hours_ago": 22,
+          "actor_handles": [
+            "@nightwolf"
+          ]
+        },
+        {
+          "id": "rss_6",
+          "source_type": "rss",
+          "title": "Night-wolf alias seen in follow-up",
+          "content": "Follow-on post appears related by analyst review.",
+          "matched_term": "swatting",
+          "hours_ago": 2,
+          "actor_handles": [
+            "@night-wolf"
+          ]
+        }
+      ],
+      "expected_linked_pairs": [
+        [
+          "rss_5",
+          "rss_6"
+        ]
+      ]
+    },
+    {
       "id": "three_alert_actor_chain",
       "window_hours": 72,
       "alerts": [

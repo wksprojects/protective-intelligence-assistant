@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import tempfile
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from datetime import timedelta
 from itertools import combinations
 from pathlib import Path
@@ -190,8 +191,9 @@ def _pairs_from_threads(threads, alert_id_to_label):
 
 def _evaluate_case(case):
     with _isolated_db():
-        db_init.init_db()
-        db_init.migrate_schema()
+        with redirect_stdout(io.StringIO()):
+            db_init.init_db()
+            db_init.migrate_schema()
         conn = db_init.get_connection()
         try:
             label_to_alert_id, labels = _insert_case_alerts(conn, case)
@@ -249,6 +251,8 @@ def run_correlation_engine_evaluation(dataset_path=DEFAULT_DATASET_PATH):
     precision = _precision(tp, fp)
     recall = _recall(tp, fn)
     f1 = _f1(precision, recall)
+    false_positive_cases = [row["id"] for row in case_rows if row["fp"] > 0]
+    false_negative_cases = [row["id"] for row in case_rows if row["fn"] > 0]
 
     return {
         "generated_at": utcnow().strftime("%Y-%m-%d %H:%M:%S"),
@@ -269,6 +273,10 @@ def run_correlation_engine_evaluation(dataset_path=DEFAULT_DATASET_PATH):
             "recall": round(recall, 4),
             "f1": round(f1, 4),
         },
+        "error_profile": {
+            "false_positive_cases": false_positive_cases,
+            "false_negative_cases": false_negative_cases,
+        },
         "cases": case_rows,
     }
 
@@ -276,6 +284,8 @@ def run_correlation_engine_evaluation(dataset_path=DEFAULT_DATASET_PATH):
 def render_correlation_engine_eval_markdown(report):
     aggregate = report["aggregate"]
     totals = report["pair_totals"]
+    fp_cases = report.get("error_profile", {}).get("false_positive_cases", [])
+    fn_cases = report.get("error_profile", {}).get("false_negative_cases", [])
     lines = [
         "# Correlation Engine Evaluation",
         "",
@@ -283,11 +293,18 @@ def render_correlation_engine_eval_markdown(report):
         f"Dataset: `{report['dataset_path']}`",
         f"Cases: **{report['cases_total']}** (exact-match cases: **{report['exact_match_cases']}**)",
         "",
+        (
+            "Dataset note: includes deliberate near-miss/adversarial cases "
+            "(cross-source term collision, actor-alias variation) to avoid inflated scores."
+        ),
+        "",
         "## Aggregate Pairwise Metrics",
         f"- Precision: **{aggregate['precision']:.4f}**",
         f"- Recall: **{aggregate['recall']:.4f}**",
         f"- F1: **{aggregate['f1']:.4f}**",
         f"- Support (positive pairs): **{totals['support_positive_pairs']}**",
+        f"- Cases with false positives: **{len(fp_cases)}** ({', '.join(fp_cases) if fp_cases else 'none'})",
+        f"- Cases with false negatives: **{len(fn_cases)}** ({', '.join(fn_cases) if fn_cases else 'none'})",
         "",
         "## Pair Confusion Totals",
         "| TP | FP | FN | TN | Total Pairs |",

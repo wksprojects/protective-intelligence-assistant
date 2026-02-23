@@ -294,7 +294,7 @@ Output:
 
 - `docs/evaluation_memo.md`
 - `docs/benchmark_table.md` (via `make benchmark`)
-- `docs/correlation_eval.md` (via `make correlation-eval`)
+- `docs/correlation_eval.md` (via `make correlation-eval`; dataset includes ambiguous/near-miss cases to prevent inflated metrics)
 
 Current repo also includes:
 

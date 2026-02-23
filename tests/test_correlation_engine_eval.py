@@ -6,9 +6,12 @@ from evals.correlation_engine_eval import (
 
 def test_correlation_engine_evaluation_report_shape():
     report = run_correlation_engine_evaluation()
-    assert report["cases_total"] >= 6
+    assert report["cases_total"] >= 8
     assert report["pair_totals"]["support_positive_pairs"] > 0
     assert report["pair_totals"]["support_all_pairs"] > 0
+    assert "error_profile" in report
+    assert "false_positive_cases" in report["error_profile"]
+    assert "false_negative_cases" in report["error_profile"]
     assert 0.0 <= report["aggregate"]["precision"] <= 1.0
     assert 0.0 <= report["aggregate"]["recall"] <= 1.0
     assert 0.0 <= report["aggregate"]["f1"] <= 1.0
