@@ -6,6 +6,12 @@ The platform ingests open-source signals, links related activity into incident t
 
 Quant hook: implements a multi-weighted scoring engine for cross-platform entity resolution and incident threading.
 
+## Headline Metrics (Latest Local Run - February 23, 2026)
+
+- Correlation linkage quality on hand-labeled scenarios: **Precision 0.8750 / Recall 0.8750 / F1 0.8750** (`make correlation-eval`).
+- Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
+- Engineering verification: **87 automated tests passing** (`pytest -q`).
+
 ## What This Project Demonstrates
 
 - Protective intelligence workflow design, not just alert scraping.
@@ -302,8 +308,9 @@ Current repo also includes:
 - ML comparison endpoint (`GET /analytics/ml-comparison`)
 - precision/recall analytics endpoint (`GET /analytics/evaluation`)
 - correlation-engine pairwise eval on hand-labeled cases (`fixtures/correlation_eval_cases.json`)
+- benchmark index and reproducibility notes (`benchmarks/README.md`)
 
-## Source Health Telemetry
+## Operational Health & Observability
 
 Current persisted fields include:
 
@@ -317,6 +324,13 @@ Current persisted fields include:
 - `disabled_reason`
 
 `/analytics/source-health` redacts raw error text by default (`include_errors=1` to include error details).
+
+The heartbeat workflow is designed for fast detection of collector degradation at run cadence:
+
+- heartbeat markdown snapshot for analyst/operator review
+- append-only JSONL log for trend analysis and auditing
+- fail streak + auto-disable state to prevent quiet reliance on dead feeds
+- observer-style collector instrumentation (`monitoring/collector_health.py`) to keep collector business logic cleaner
 
 Planned telemetry additions:
 
@@ -354,6 +368,7 @@ Incremental modularization is now in place:
 - `processor/` for correlation/processing facades
 - `evals/` for benchmark and signal-quality evaluation facades
 - `monitoring/` for operational heartbeat and source-health reliability telemetry
+- `benchmarks/` for benchmark catalog and reproducibility notes
 
 ## Testing
 
@@ -361,7 +376,7 @@ Incremental modularization is now in place:
 python -m pytest tests/ -v
 ```
 
-Current suite status: 85 passing tests.
+Current suite status: 87 passing tests.
 
 ## Legal and Operational Note
 

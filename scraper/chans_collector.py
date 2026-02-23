@@ -2,7 +2,6 @@
 
 import json
 import os
-import time
 from pathlib import Path
 
 from analytics.dedup import check_duplicate
@@ -11,8 +10,9 @@ from analytics.ep_pipeline import process_ep_signals
 from analytics.risk_scoring import build_frequency_snapshot, increment_keyword_frequency, score_alert
 from analytics.utils import utcnow
 from database.init_db import get_connection
+from monitoring.collector_health import CollectorHealthObserver
 from scraper.rss_scraper import get_active_keywords, match_keywords
-from scraper.source_health import mark_source_failure, mark_source_skipped, mark_source_success
+from scraper.source_health import mark_source_failure, mark_source_skipped
 
 FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "chans_fixtures.json"
 
@@ -75,8 +75,8 @@ def _resolve_keyword_id(conn, keyword_cache, post, combined_text):
 def run_chans_collector(frequency_snapshot=None):
     conn = get_connection()
     source_id = None
-    started_at = time.perf_counter()
     try:
+        observer = CollectorHealthObserver(conn, "chans")
         source_id = _ensure_source(conn)
         if not _enabled():
             mark_source_skipped(conn, source_id, "PI_ENABLE_CHANS_COLLECTOR not set")
@@ -101,85 +101,82 @@ def run_chans_collector(frequency_snapshot=None):
 
         created = 0
         duplicates = 0
-        for post in posts:
-            title = str(post.get("title", "")).strip()
-            content = str(post.get("content", "")).strip()
-            url = str(post.get("url", "")).strip()
-            if not title or not url:
-                continue
-            if conn.execute("SELECT id FROM alerts WHERE url = ?", (url,)).fetchone():
-                duplicates += 1
-                continue
+        with observer.observe(source_id, collection_count=lambda: created):
+            for post in posts:
+                title = str(post.get("title", "")).strip()
+                content = str(post.get("content", "")).strip()
+                url = str(post.get("url", "")).strip()
+                if not title or not url:
+                    continue
+                if conn.execute("SELECT id FROM alerts WHERE url = ?", (url,)).fetchone():
+                    duplicates += 1
+                    continue
 
-            combined_text = f"{title}\n{content}"
-            keyword_id, matched_term, keyword_category = _resolve_keyword_id(
-                conn, keyword_cache, post, combined_text
-            )
-
-            content_hash, duplicate_of = check_duplicate(conn, title, content)
-            conn.execute(
-                """INSERT INTO alerts
-                (source_id, keyword_id, title, content, url, matched_term,
-                 content_hash, duplicate_of, published_at, severity)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    source_id,
-                    keyword_id,
-                    title,
-                    content[:2000],
-                    url,
-                    matched_term,
-                    content_hash,
-                    duplicate_of,
-                    post.get("published_at") or utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    "low",
-                ),
-            )
-            alert_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
-            if duplicate_of is not None:
-                duplicates += 1
-                continue
-
-            score_args = frequency_snapshot.get(keyword_id)
-            baseline_score = score_alert(
-                conn,
-                alert_id,
-                keyword_id,
-                source_id,
-                published_at=post.get("published_at"),
-                frequency_override=score_args[0] if score_args else None,
-                z_score_override=score_args[1] if score_args else None,
-            )
-            extract_and_store_alert_entities(conn, alert_id, combined_text)
-
-            author_handle = str(post.get("author_handle", "")).strip().lower()
-            if author_handle:
-                conn.execute(
-                    """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
-                    VALUES (?, 'actor_handle', ?, CURRENT_TIMESTAMP)""",
-                    (alert_id, author_handle),
+                combined_text = f"{title}\n{content}"
+                keyword_id, matched_term, keyword_category = _resolve_keyword_id(
+                    conn, keyword_cache, post, combined_text
                 )
 
-            process_ep_signals(
-                conn,
-                alert_id=alert_id,
-                title=title,
-                content=content,
-                keyword_category=keyword_category,
-                baseline_score=baseline_score,
-            )
-            increment_keyword_frequency(conn, keyword_id)
-            created += 1
+                content_hash, duplicate_of = check_duplicate(conn, title, content)
+                conn.execute(
+                    """INSERT INTO alerts
+                    (source_id, keyword_id, title, content, url, matched_term,
+                     content_hash, duplicate_of, published_at, severity)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        source_id,
+                        keyword_id,
+                        title,
+                        content[:2000],
+                        url,
+                        matched_term,
+                        content_hash,
+                        duplicate_of,
+                        post.get("published_at") or utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        "low",
+                    ),
+                )
+                alert_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
+                if duplicate_of is not None:
+                    duplicates += 1
+                    continue
 
-        elapsed_ms = (time.perf_counter() - started_at) * 1000.0
-        mark_source_success(conn, source_id, collection_count=created, latency_ms=elapsed_ms)
+                score_args = frequency_snapshot.get(keyword_id)
+                baseline_score = score_alert(
+                    conn,
+                    alert_id,
+                    keyword_id,
+                    source_id,
+                    published_at=post.get("published_at"),
+                    frequency_override=score_args[0] if score_args else None,
+                    z_score_override=score_args[1] if score_args else None,
+                )
+                extract_and_store_alert_entities(conn, alert_id, combined_text)
+
+                author_handle = str(post.get("author_handle", "")).strip().lower()
+                if author_handle:
+                    conn.execute(
+                        """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+                        VALUES (?, 'actor_handle', ?, CURRENT_TIMESTAMP)""",
+                        (alert_id, author_handle),
+                    )
+
+                process_ep_signals(
+                    conn,
+                    alert_id=alert_id,
+                    title=title,
+                    content=content,
+                    keyword_category=keyword_category,
+                    baseline_score=baseline_score,
+                )
+                increment_keyword_frequency(conn, keyword_id)
+                created += 1
+
         conn.commit()
         print(f"Chans collector complete. {created} new alerts, {duplicates} duplicates skipped.")
         return created
     except Exception as exc:
-        if source_id is not None:
-            mark_source_failure(conn, source_id, f"chans collector error: {exc!r}")
-            conn.commit()
+        conn.commit()
         print(f"Chans collector failed: {exc}")
         return 0
     finally:
