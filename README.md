@@ -41,39 +41,39 @@ Implemented now:
 ```mermaid
 flowchart LR
     subgraph Sources
-        RSS[RSS feeds]
-        Reddit[Reddit RSS]
-        Paste[Pastebin Archive]
-        ACLED[ACLED (optional)]
-        TG[Telegram prototype]
-        Chans[Chans prototype]
-        DW[Dark-web scaffold]
+        RSS["RSS feeds"]
+        Reddit["Reddit RSS"]
+        Paste["Pastebin Archive"]
+        ACLED["ACLED (optional)"]
+        TG["Telegram prototype"]
+        Chans["Chans prototype"]
+        DW["Dark-web scaffold"]
     end
 
     subgraph Ingestion
-        Collect[Collectors]
-        Match[Keyword match + dedup]
-        Extract[Entity extraction + POI/location enrichment]
+        Collect["Collectors"]
+        Match["Keyword match + dedup"]
+        Extract["Entity extraction + POI/location enrichment"]
     end
 
     subgraph Intelligence Engine
-        Corr[SOI Correlation Threads]
-        ORS[Operational Risk Score]
-        TAS[Threat Assessment Score]
-        MC[Monte Carlo Uncertainty]
+        Corr["SOI Correlation Threads"]
+        ORS["Operational Risk Score"]
+        TAS["Threat Assessment Score"]
+        MC["Monte Carlo Uncertainty"]
     end
 
     subgraph Analyst Outputs
-        Alerts[Prioritized Alerts]
-        Threads[Incident Threads]
-        Daily[Daily Intel Report]
-        Travel[Travel Brief]
-        SITREP[SITREP]
+        Alerts["Prioritized Alerts"]
+        Threads["Incident Threads"]
+        Daily["Daily Intel Report"]
+        Travel["Travel Brief"]
+        SITREP["SITREP"]
     end
 
-    DB[(SQLite)]
-    API[FastAPI]
-    UI[Streamlit]
+    DB[("SQLite")]
+    API["FastAPI"]
+    UI["Streamlit"]
 
     RSS --> Collect
     Reddit --> Collect
@@ -103,13 +103,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A[Adversarial + Public Sources] --> B[Collection Layer]
-    B --> C[Normalized Artifact Store]
-    B --> D[Vector Index (planned)]
-    C --> E[Correlation Engine]
+    A["Adversarial + Public Sources"] --> B["Collection Layer"]
+    B --> C["Normalized Artifact Store"]
+    B --> D["Vector Index (planned)"]
+    C --> E["Correlation Engine"]
     D --> E
-    E --> F[Incident Threads + Confidence]
-    F --> G[Analyst Alert Queue + Reporting]
+    E --> F["Incident Threads + Confidence"]
+    F --> G["Analyst Alert Queue + Reporting"]
 ```
 
 Note: vector index/semantic matching is planned, not in the current production path.
