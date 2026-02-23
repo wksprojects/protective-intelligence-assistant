@@ -1210,6 +1210,10 @@ def seed_threat_actors():
     # Threat subjects with behavioral assessments are the primary EP tracking
     # mechanism; this table provides reference context for known groups.
     actors = []
+    if not actors:
+        conn.close()
+        print("Threat actor seed list is empty; skipping.")
+        return
     for name, aliases, description in actors:
         existing = conn.execute("SELECT id FROM threat_actors WHERE name = ?", (name,)).fetchone()
         if not existing:

@@ -158,8 +158,12 @@ async def request_context_middleware(request: Request, call_next):
     start = time.perf_counter()
     try:
         response = await call_next(request)
-    except HTTPException:
-        raise
+    except HTTPException as exc:
+        response = JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail, "request_id": request_id},
+            headers=exc.headers or None,
+        )
     except Exception:
         logger.exception(
             "unhandled_exception",

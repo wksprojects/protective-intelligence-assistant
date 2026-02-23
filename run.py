@@ -14,6 +14,7 @@ Usage:
     python run.py all         Start API + Dashboard (requires separate terminal for each)
 """
 
+import os
 import subprocess
 import sys
 
@@ -129,8 +130,10 @@ def main():
     elif command == "api":
         init_db()
         migrate_schema()
+        api_host = os.getenv("PI_API_HOST", "127.0.0.1")
+        api_port = str(os.getenv("PI_API_PORT", "8000"))
         subprocess.run(
-            ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+            ["uvicorn", "api.main:app", "--host", api_host, "--port", api_port, "--reload"]
         )
 
     elif command == "dashboard":

@@ -5,7 +5,7 @@ services:
     build: .
     container_name: pi-api
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./database:/app/database
       - ./config:/app/config
@@ -16,7 +16,7 @@ services:
     build: .
     container_name: pi-dashboard
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     depends_on:
       - api
     volumes:
