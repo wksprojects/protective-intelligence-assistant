@@ -11,7 +11,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from evals.source_health_heartbeat import (
+from monitoring.source_health import (
     build_source_health_heartbeat,
     write_source_health_heartbeat_artifacts,
 )

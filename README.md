@@ -12,6 +12,7 @@ Quant hook: implements a multi-weighted scoring engine for cross-platform entity
 - Quantitative triage with explainable scoring (ORS, TAS, uncertainty intervals).
 - Correlation logic that reduces analyst noise by clustering related signals into Subject of Interest (SOI) threads.
 - Operational reliability patterns (source health, fail streaks, auto-disable of dead feeds).
+- High-consequence uptime posture: heartbeat snapshots + append-only health logs to surface silent collector failures.
 - Production-minded API, auditability, and environment-gated collectors.
 
 ## Current Status
@@ -25,6 +26,7 @@ Implemented now:
 - Targeted source preset preview endpoint for event/location watchlist expansion.
 - Signal-quality analytics endpoint (precision-oriented TP/FP tracking by source/category).
 - Source health telemetry fields and auto-disable controls.
+- Hand-labeled correlation evaluation workflow with pairwise precision/recall/F1 metrics.
 
 ## Screenshots
 
@@ -197,6 +199,12 @@ Generate a compact benchmark table for portfolio/interview use:
 make benchmark
 ```
 
+Generate hand-labeled correlation precision/recall metrics:
+
+```bash
+make correlation-eval
+```
+
 Generate an operational source-health heartbeat snapshot + append-only log:
 
 ```bash
@@ -286,12 +294,14 @@ Output:
 
 - `docs/evaluation_memo.md`
 - `docs/benchmark_table.md` (via `make benchmark`)
+- `docs/correlation_eval.md` (via `make correlation-eval`)
 
 Current repo also includes:
 
 - backtesting workflow
 - ML comparison endpoint (`GET /analytics/ml-comparison`)
 - precision/recall analytics endpoint (`GET /analytics/evaluation`)
+- correlation-engine pairwise eval on hand-labeled cases (`fixtures/correlation_eval_cases.json`)
 
 ## Source Health Telemetry
 
@@ -317,6 +327,12 @@ Heartbeat artifacts:
 - `docs/source_health_heartbeat.md` (latest markdown snapshot)
 - `docs/source_health_heartbeat.jsonl` (append-only heartbeat log; local artifact)
 
+Run heartbeat on demand:
+
+```bash
+make heartbeat
+```
+
 ## Deployment
 
 Containerized options are already included:
@@ -337,6 +353,7 @@ Incremental modularization is now in place:
 - `collectors/` for ingestion facades and pipeline entrypoints
 - `processor/` for correlation/processing facades
 - `evals/` for benchmark and signal-quality evaluation facades
+- `monitoring/` for operational heartbeat and source-health reliability telemetry
 
 ## Testing
 
@@ -344,7 +361,7 @@ Incremental modularization is now in place:
 python -m pytest tests/ -v
 ```
 
-Current suite status: 83 passing tests.
+Current suite status: 85 passing tests.
 
 ## Legal and Operational Note
 

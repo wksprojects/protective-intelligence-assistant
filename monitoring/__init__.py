@@ -1,8 +1,4 @@
-"""Compatibility wrapper for source-health heartbeat helpers.
-
-Operational monitoring logic now lives in ``monitoring.source_health``.
-This module preserves the existing import path.
-"""
+"""Monitoring package for operational reliability components."""
 
 from monitoring.source_health import (
     build_source_health_heartbeat,

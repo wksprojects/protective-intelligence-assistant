@@ -11,6 +11,7 @@ Usage:
     python run.py purge-demo  Remove demo-seeded content from database
     python run.py evaluate    Generate quantitative evaluation memo
     python run.py benchmark   Generate compact benchmark table markdown
+    python run.py correlation-eval  Generate correlation precision/recall artifact
     python run.py heartbeat   Generate source health heartbeat artifacts
     python run.py casepack    Generate incident thread case pack markdown
     python run.py demo        Load fixtures and generate demo EP artifacts
@@ -157,6 +158,9 @@ def main():
 
     elif command == "benchmark":
         subprocess.run([sys.executable, "scripts/generate_benchmark_table.py"], check=True)
+
+    elif command in ("correlation-eval", "correlation_eval", "corr-eval"):
+        subprocess.run([sys.executable, "scripts/generate_correlation_eval.py"], check=True)
 
     elif command == "heartbeat":
         subprocess.run([sys.executable, "scripts/generate_source_health_heartbeat.py"], check=True)

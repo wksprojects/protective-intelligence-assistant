@@ -1,0 +1,245 @@
+{
+  "description": "Hand-labeled correlation-engine evaluation cases (pairwise linkage).",
+  "cases": [
+    {
+      "id": "actor_handle_cross_platform",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "tg_1",
+          "source_type": "telegram",
+          "title": "Hydra posts direct threat",
+          "content": "We are planning a death threat campaign at HQ.",
+          "matched_term": "death threat",
+          "hours_ago": 4,
+          "actor_handles": [
+            "@hydra"
+          ]
+        },
+        {
+          "id": "chan_1",
+          "source_type": "chans",
+          "title": "Hydra repost on board",
+          "content": "Death threat statement references HQ timing.",
+          "matched_term": "death threat",
+          "hours_ago": 3,
+          "actor_handles": [
+            "@hydra"
+          ]
+        },
+        {
+          "id": "rd_1",
+          "source_type": "reddit",
+          "title": "Travel bulletin update",
+          "content": "No threat language in this advisory update.",
+          "matched_term": "travel advisory",
+          "hours_ago": 2
+        }
+      ],
+      "expected_linked_pairs": [
+        [
+          "tg_1",
+          "chan_1"
+        ]
+      ]
+    },
+    {
+      "id": "shared_poi_cross_source",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "rss_1",
+          "source_type": "rss",
+          "title": "Protest planning near conference",
+          "content": "Organizers mention principal movements.",
+          "matched_term": "protest",
+          "hours_ago": 6,
+          "poi_names": [
+            "Jane Doe"
+          ]
+        },
+        {
+          "id": "rd_2",
+          "source_type": "reddit",
+          "title": "Venue protest thread references principal",
+          "content": "Users discuss the same principal at venue perimeter.",
+          "matched_term": "protest",
+          "hours_ago": 5,
+          "poi_names": [
+            "Jane Doe"
+          ]
+        }
+      ],
+      "expected_linked_pairs": [
+        [
+          "rss_1",
+          "rd_2"
+        ]
+      ]
+    },
+    {
+      "id": "shared_domain_indicator",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "rss_2",
+          "source_type": "rss",
+          "title": "Doxxing site references executive",
+          "content": "Post includes credential dump domain.",
+          "matched_term": "doxxing",
+          "hours_ago": 10,
+          "entities": [
+            {
+              "entity_type": "domain",
+              "entity_value": "leak-hub.example"
+            }
+          ]
+        },
+        {
+          "id": "tg_2",
+          "source_type": "telegram",
+          "title": "Channel mirrors dox content",
+          "content": "Same leak domain appears in repost.",
+          "matched_term": "doxxing",
+          "hours_ago": 9,
+          "entities": [
+            {
+              "entity_type": "domain",
+              "entity_value": "leak-hub.example"
+            }
+          ]
+        },
+        {
+          "id": "chan_2",
+          "source_type": "chans",
+          "title": "General travel chatter",
+          "content": "Airport delays and weather reports only.",
+          "matched_term": "travel advisory",
+          "hours_ago": 8
+        }
+      ],
+      "expected_linked_pairs": [
+        [
+          "rss_2",
+          "tg_2"
+        ]
+      ]
+    },
+    {
+      "id": "shared_url_indicator",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "tg_3",
+          "source_type": "telegram",
+          "title": "Paste link with target details",
+          "content": "Leaked profile appears in external paste.",
+          "matched_term": "doxxing",
+          "hours_ago": 12,
+          "entities": [
+            {
+              "entity_type": "url",
+              "entity_value": "https://paste.example/risk-file"
+            }
+          ]
+        },
+        {
+          "id": "rd_3",
+          "source_type": "reddit",
+          "title": "Forum repost includes same link",
+          "content": "Users repeat the exact leak URL.",
+          "matched_term": "doxxing",
+          "hours_ago": 11,
+          "entities": [
+            {
+              "entity_type": "url",
+              "entity_value": "https://paste.example/risk-file"
+            }
+          ]
+        }
+      ],
+      "expected_linked_pairs": [
+        [
+          "tg_3",
+          "rd_3"
+        ]
+      ]
+    },
+    {
+      "id": "distinct_noise_unlinked",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "rss_3",
+          "source_type": "rss",
+          "title": "Routine weather delay advisory",
+          "content": "Airport weather disruption update.",
+          "matched_term": "travel advisory",
+          "hours_ago": 4
+        },
+        {
+          "id": "tg_4",
+          "source_type": "telegram",
+          "title": "Isolated rant without targeting",
+          "content": "General complaints and frustration text only.",
+          "matched_term": "bomb threat",
+          "hours_ago": 3
+        }
+      ],
+      "expected_linked_pairs": []
+    },
+    {
+      "id": "three_alert_actor_chain",
+      "window_hours": 72,
+      "alerts": [
+        {
+          "id": "tg_5",
+          "source_type": "telegram",
+          "title": "Vector announces swatting",
+          "content": "Swatting threat references office access point.",
+          "matched_term": "swatting",
+          "hours_ago": 7,
+          "actor_handles": [
+            "@vector"
+          ]
+        },
+        {
+          "id": "chan_3",
+          "source_type": "chans",
+          "title": "Vector reposted swatting idea",
+          "content": "Board post matches prior swatting language.",
+          "matched_term": "swatting",
+          "hours_ago": 6,
+          "actor_handles": [
+            "@vector"
+          ]
+        },
+        {
+          "id": "rss_4",
+          "source_type": "rss",
+          "title": "Blog comments mirror swatting phrasing",
+          "content": "Same actor handle appears in comment thread.",
+          "matched_term": "swatting",
+          "hours_ago": 5,
+          "actor_handles": [
+            "@vector"
+          ]
+        }
+      ],
+      "expected_linked_pairs": [
+        [
+          "tg_5",
+          "chan_3"
+        ],
+        [
+          "tg_5",
+          "rss_4"
+        ],
+        [
+          "chan_3",
+          "rss_4"
+        ]
+      ]
+    }
+  ]
+}
