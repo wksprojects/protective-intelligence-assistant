@@ -83,6 +83,10 @@ def _build_run_frequency_snapshot():
 # Concurrency control: limit parallel requests to avoid overwhelming targets
 _MAX_CONCURRENT_REQUESTS = 10
 _semaphore = None
+_RSS_FETCH_HEADERS = {
+    "User-Agent": "ProtectiveIntelAssistant/0.1 (+https://localhost)",
+    "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
+}
 
 
 def _get_semaphore():
@@ -97,6 +101,9 @@ async def _fetch_url_async(session, url, timeout=15):
     try:
         async with _get_semaphore():
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+                if resp.status >= 400:
+                    print(f"Async fetch HTTP {resp.status} for {url}")
+                    return None
                 return await resp.text()
     except Exception as e:
         print(f"Async fetch error for {url}: {e}")
@@ -109,9 +116,13 @@ def _make_aiohttp_session():
     Falls back to defaults if the installed aiohttp version lacks these parameters.
     """
     try:
-        return aiohttp.ClientSession(max_line_size=65536, max_field_size=65536)
+        return aiohttp.ClientSession(
+            headers=_RSS_FETCH_HEADERS,
+            max_line_size=65536,
+            max_field_size=65536,
+        )
     except TypeError:
-        return aiohttp.ClientSession()
+        return aiohttp.ClientSession(headers=_RSS_FETCH_HEADERS)
 
 
 async def run_rss_scraper_async(frequency_snapshot=None):
@@ -145,6 +156,7 @@ async def run_rss_scraper_async(frequency_snapshot=None):
 
     # Process each feed synchronously (SQLite writes)
     for source, raw_text in zip(sources, raw_responses):
+        parsed_entries = []
         if raw_text:
             print(f"Processing: {source['name']}")
             feed = feedparser.parse(raw_text)
@@ -157,8 +169,14 @@ async def run_rss_scraper_async(frequency_snapshot=None):
                 }
                 for entry in feed.entries
             ]
-        else:
-            print(f"Async fetch failed for {source['name']}; trying sync RSS fallback.")
+            if not parsed_entries:
+                print(
+                    f"Async parse returned no entries for {source['name']}; "
+                    "trying sync RSS fallback."
+                )
+        if not parsed_entries:
+            if not raw_text:
+                print(f"Async fetch failed for {source['name']}; trying sync RSS fallback.")
             try:
                 parsed_entries = fetch_rss_feed(source["url"])
             except Exception as e:
