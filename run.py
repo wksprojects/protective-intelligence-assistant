@@ -10,6 +10,7 @@ Usage:
     python run.py purge       Purge raw content older than retention window
     python run.py purge-demo  Remove demo-seeded content from database
     python run.py evaluate    Generate quantitative evaluation memo
+    python run.py benchmark   Generate compact benchmark table markdown
     python run.py casepack    Generate incident thread case pack markdown
     python run.py demo        Load fixtures and generate demo EP artifacts
     python run.py all         Start API + Dashboard (requires separate terminal for each)
@@ -31,7 +32,7 @@ from database.init_db import (
     seed_default_sources,
     seed_threat_actors,
 )
-from scraper import run_all_scrapers
+from collectors import run_all_collectors
 
 
 def purge_demo_content():
@@ -126,7 +127,7 @@ def main():
     elif command == "scrape":
         init_db()
         migrate_schema()
-        run_all_scrapers()
+        run_all_collectors()
 
     elif command == "api":
         init_db()
@@ -152,6 +153,9 @@ def main():
 
     elif command == "evaluate":
         subprocess.run([sys.executable, "scripts/generate_evaluation_memo.py"], check=True)
+
+    elif command == "benchmark":
+        subprocess.run([sys.executable, "scripts/generate_benchmark_table.py"], check=True)
 
     elif command == "casepack":
         subprocess.run([sys.executable, "scripts/generate_incident_thread_casepack.py"], check=True)

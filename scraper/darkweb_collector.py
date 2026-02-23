@@ -6,6 +6,7 @@ validation are completed.
 """
 
 import os
+import time
 
 from database.init_db import get_connection
 from scraper.source_health import mark_source_failure, mark_source_skipped
@@ -25,6 +26,7 @@ def run_darkweb_collector(frequency_snapshot=None):
     _ = frequency_snapshot
 
     conn = get_connection()
+    started_at = time.perf_counter()
     try:
         source_rows = conn.execute(
             "SELECT id FROM sources WHERE source_type = 'darkweb'"
@@ -43,6 +45,11 @@ def run_darkweb_collector(frequency_snapshot=None):
                 conn,
                 source_id,
                 "collector enabled but implementation not available",
+            )
+            elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+            conn.execute(
+                "UPDATE sources SET last_collection_count = 0, last_latency_ms = ? WHERE id = ?",
+                (round(elapsed_ms, 3), source_id),
             )
         conn.commit()
     finally:

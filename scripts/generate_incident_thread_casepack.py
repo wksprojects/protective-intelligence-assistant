@@ -19,7 +19,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from analytics.soi_threads import build_soi_threads
+from processor.correlation import build_incident_threads
 from database import init_db as db_init
 from scraper.chans_collector import run_chans_collector
 from scraper.telegram_collector import run_telegram_collector
@@ -137,6 +137,7 @@ def _render_casepack(thread, telegram_count, chans_count):
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     max_ors = float(thread.get("max_ors_score") or 0.0)
     max_tas = float(thread.get("max_tas_score") or 0.0)
+    thread_conf = float(thread.get("thread_confidence") or 0.0)
     tier = _escalation_tier(max_ors)
 
     timeline_rows = []
@@ -157,10 +158,13 @@ def _render_casepack(thread, telegram_count, chans_count):
     shared_entities = ", ".join(thread.get("shared_entities") or []) or "none"
     matched_terms = ", ".join(thread.get("matched_terms") or []) or "none"
     poi_names = ", ".join(thread.get("poi_names") or []) or "none"
+    reason_codes = ", ".join(thread.get("reason_codes") or []) or "none"
 
     evidence_notes = []
-    if thread.get("actor_handles"):
-        evidence_notes.append("Actor-handle evidence present; validate continuity during analyst review.")
+    if "shared_actor_handle" in (thread.get("reason_codes") or []):
+        evidence_notes.append("Shared actor handle linkage contributed to correlation confidence.")
+    elif thread.get("actor_handles"):
+        evidence_notes.append("Actor handles present but not shared; continuity requires analyst validation.")
     if thread.get("shared_entities"):
         evidence_notes.append("Shared entities observed across alerts.")
     if len(thread.get("sources", [])) >= 2:
@@ -194,6 +198,7 @@ def _render_casepack(thread, telegram_count, chans_count):
         f"- time window: **{thread.get('start_ts')} → {thread.get('end_ts')}**",
         f"- max ORS: **{max_ors:.1f}**",
         f"- max TAS: **{max_tas:.1f}**",
+        f"- thread confidence: **{thread_conf:.2f}**",
         f"- recommended escalation tier: **{tier}**",
         "",
         "## Correlation Evidence",
@@ -201,6 +206,7 @@ def _render_casepack(thread, telegram_count, chans_count):
         f"- shared entities: {shared_entities}",
         f"- matched terms: {matched_terms}",
         f"- linked POIs: {poi_names}",
+        f"- reason codes: {reason_codes}",
         "",
     ]
     lines.extend(f"- {note}" for note in evidence_notes)
@@ -235,7 +241,12 @@ def main():
     with _isolated_db():
         _ensure_initialized()
         telegram_count, chans_count = _collect_fixture_sources()
-        threads = build_soi_threads(days=30, window_hours=72, min_cluster_size=2, include_demo=False)
+        threads = build_incident_threads(
+            days=30,
+            window_hours=72,
+            min_cluster_size=2,
+            include_demo=False,
+        )
         selected = _choose_thread(threads)
 
     DOCS_OUTPUT.parent.mkdir(parents=True, exist_ok=True)

@@ -1,5 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
+import time
 
 from analytics.dedup import check_duplicate
 from analytics.ep_pipeline import process_ep_signals
@@ -82,6 +83,7 @@ def ensure_pastebin_source(conn):
 
 def run_pastebin_scraper(frequency_snapshot=None):
     conn = get_connection()
+    started_at = time.perf_counter()
     try:
         keywords = get_active_keywords(conn)
         if frequency_snapshot is None:
@@ -157,7 +159,8 @@ def run_pastebin_scraper(frequency_snapshot=None):
                     else:
                         duplicates += 1
 
-        mark_source_success(conn, source_id)
+        elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+        mark_source_success(conn, source_id, collection_count=new_alerts, latency_ms=elapsed_ms)
         conn.commit()
         print(f"Pastebin scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped.")
         return new_alerts

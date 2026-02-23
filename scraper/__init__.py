@@ -191,6 +191,8 @@ async def run_rss_scraper_async(frequency_snapshot=None):
 
     # Process each feed synchronously (SQLite writes)
     for source, raw_text in zip(sources, raw_responses):
+        source_started = time.perf_counter()
+        source_new_alerts = 0
         parsed_entries = []
         failure_reason = "no feed entries returned"
         if raw_text:
@@ -228,7 +230,6 @@ async def run_rss_scraper_async(frequency_snapshot=None):
                 print(f"Skipping {source['name']} (no entries from fallback)")
                 continue
 
-        mark_source_success(conn, source["id"])
         for entry in parsed_entries:
             title = entry.get("title", "")
             content = entry.get("content", "")
@@ -281,8 +282,17 @@ async def run_rss_scraper_async(frequency_snapshot=None):
                         )
                         increment_keyword_frequency(conn, keyword["id"])
                         new_alerts += 1
+                        source_new_alerts += 1
                     else:
                         duplicates += 1
+
+        source_elapsed_ms = (time.perf_counter() - source_started) * 1000.0
+        mark_source_success(
+            conn,
+            source["id"],
+            collection_count=source_new_alerts,
+            latency_ms=source_elapsed_ms,
+        )
 
     conn.commit()
     conn.close()
@@ -321,6 +331,8 @@ async def run_reddit_scraper_async(frequency_snapshot=None):
         raw_responses = await asyncio.gather(*tasks)
 
     for source, raw_text in zip(sources, raw_responses):
+        source_started = time.perf_counter()
+        source_new_alerts = 0
         if not raw_text:
             mark_source_failure(conn, source["id"], "async fetch failed")
             print(f"Skipping {source['name']} (fetch failed)")
@@ -333,8 +345,6 @@ async def run_reddit_scraper_async(frequency_snapshot=None):
             mark_source_failure(conn, source["id"], "async parse produced no entries")
             print(f"Skipping {source['name']} (no entries)")
             continue
-        mark_source_success(conn, source["id"])
-
         for entry in entries:
             title = entry.get("title", "")
             content = entry.get("summary", "")
@@ -387,8 +397,17 @@ async def run_reddit_scraper_async(frequency_snapshot=None):
                         )
                         increment_keyword_frequency(conn, keyword["id"])
                         new_alerts += 1
+                        source_new_alerts += 1
                     else:
                         duplicates += 1
+
+        source_elapsed_ms = (time.perf_counter() - source_started) * 1000.0
+        mark_source_success(
+            conn,
+            source["id"],
+            collection_count=source_new_alerts,
+            latency_ms=source_elapsed_ms,
+        )
 
     conn.commit()
     conn.close()

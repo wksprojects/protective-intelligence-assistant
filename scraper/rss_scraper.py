@@ -1,4 +1,5 @@
 import re
+import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -116,11 +117,12 @@ def run_rss_scraper(frequency_snapshot=None):
 
     for source in sources:
         print(f"Scraping: {source['name']}")
+        source_started = time.perf_counter()
         entries = fetch_rss_feed(source["url"])
         if not entries:
             mark_source_failure(conn, source["id"], "sync RSS returned no entries")
             continue
-        mark_source_success(conn, source["id"])
+        source_new_alerts = 0
 
         for entry in entries:
             combined_text = f"{entry['title']} {entry['content']}"
@@ -175,8 +177,17 @@ def run_rss_scraper(frequency_snapshot=None):
                         )
                         increment_keyword_frequency(conn, keyword["id"])
                         new_alerts += 1
+                        source_new_alerts += 1
                     else:
                         duplicates += 1
+
+        source_elapsed_ms = (time.perf_counter() - source_started) * 1000.0
+        mark_source_success(
+            conn,
+            source["id"],
+            collection_count=source_new_alerts,
+            latency_ms=source_elapsed_ms,
+        )
 
     conn.commit()
     conn.close()

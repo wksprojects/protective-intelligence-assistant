@@ -5,6 +5,7 @@ If not configured, it no-ops safely.
 """
 
 import os
+import time
 
 import requests
 
@@ -41,6 +42,7 @@ def run_acled_collector(frequency_snapshot=None):
 
     conn = get_connection()
     source_id = None
+    started_at = time.perf_counter()
     try:
         keywords = get_active_keywords(conn)
         source = conn.execute(
@@ -130,7 +132,8 @@ def run_acled_collector(frequency_snapshot=None):
             created += 1
 
         conn.commit()
-        mark_source_success(conn, source_id)
+        elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+        mark_source_success(conn, source_id, collection_count=created, latency_ms=elapsed_ms)
         conn.commit()
         print(f"ACLED collector complete. {created} new alerts.")
         return created

@@ -2,12 +2,26 @@
 
 from collections import defaultdict
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 from analytics.utils import parse_timestamp, utcnow
 from database.init_db import get_connection
 
 _SHARED_ENTITY_TYPES = {"actor_handle", "domain", "ipv4", "url"}
 _MAX_PAIR_CHECKS_PER_GROUP = 25000
+_MIN_PAIR_LINK_SCORE = 0.35
+
+_REASON_WEIGHTS = {
+    "shared_actor_handle": 0.55,
+    "shared_poi": 0.5,
+    "shared_entity": 0.45,
+    "matched_term_temporal": 0.2,
+    "shared_source_fingerprint": 0.15,
+    "cross_source": 0.1,
+    "tight_temporal": 0.1,
+    "linguistic_overlap_high": 0.1,
+    "linguistic_overlap_medium": 0.05,
+}
 
 
 class _UnionFind:
@@ -38,11 +52,59 @@ class _UnionFind:
         self.rank[root_left] += 1
 
 
-def _within_hours(left_dt, right_dt, max_hours):
-    if left_dt is None or right_dt is None:
-        return False
-    diff_seconds = abs((left_dt - right_dt).total_seconds())
-    return diff_seconds <= float(max_hours) * 3600.0
+def _normalize_tokens(value):
+    if not value:
+        return set()
+    raw = str(value).lower()
+    tokens = []
+    token = []
+    for ch in raw:
+        if ch.isalnum() or ch in {"@", "_", "-"}:
+            token.append(ch)
+        else:
+            if token:
+                joined = "".join(token)
+                if len(joined) >= 3:
+                    tokens.append(joined)
+                token = []
+    if token:
+        joined = "".join(token)
+        if len(joined) >= 3:
+            tokens.append(joined)
+    return set(tokens)
+
+
+def _source_fingerprint(source_type, url):
+    parsed = urlparse(str(url or "").strip())
+    host = (parsed.netloc or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    stype = (source_type or "unknown").strip().lower() or "unknown"
+    return f"{stype}:{host or 'unknown'}"
+
+
+def _pair_key(left_id, right_id):
+    return (left_id, right_id) if left_id < right_id else (right_id, left_id)
+
+
+def _record_pair(pair_scores, pair_reasons, left_id, right_id, score_delta, reasons):
+    if score_delta <= 0:
+        return
+    key = _pair_key(left_id, right_id)
+    pair_scores[key] = round(min(1.0, float(pair_scores.get(key, 0.0)) + float(score_delta)), 6)
+    bucket = pair_reasons[key]
+    for reason in reasons:
+        if reason:
+            bucket.add(str(reason))
+
+
+def _jaccard(left_tokens, right_tokens):
+    if not left_tokens or not right_tokens:
+        return 0.0
+    denom = len(left_tokens | right_tokens)
+    if denom <= 0:
+        return 0.0
+    return len(left_tokens & right_tokens) / denom
 
 
 def _connect_pairs(
@@ -50,32 +112,79 @@ def _connect_pairs(
     alerts_by_id,
     grouped_alert_ids,
     max_hours,
+    reason_code,
+    reason_weight,
+    pair_scores,
+    pair_reasons,
+    min_link_score=_MIN_PAIR_LINK_SCORE,
     max_pair_checks=_MAX_PAIR_CHECKS_PER_GROUP,
 ):
     max_seconds = float(max_hours) * 3600.0
     safe_max_pair_checks = max(1, int(max_pair_checks))
+    link_threshold = max(0.0, float(min_link_score))
+
     for alert_ids in grouped_alert_ids.values():
         ids = [alert_id for alert_id in set(alert_ids) if alert_id in alerts_by_id]
         if len(ids) < 2:
             continue
-        ids.sort(key=lambda aid: alerts_by_id[aid]["timestamp_dt"] or datetime.max)
+
+        ids.sort(key=lambda aid: alerts_by_id[aid].get("timestamp_dt") or datetime.max)
         pair_checks = 0
+
         for idx in range(len(ids)):
             left_id = ids[idx]
-            left_ts = alerts_by_id[left_id]["timestamp_dt"]
+            left = alerts_by_id[left_id]
+            left_ts = left.get("timestamp_dt")
             if left_ts is None:
                 continue
+
             for jdx in range(idx + 1, len(ids)):
                 right_id = ids[jdx]
-                right_ts = alerts_by_id[right_id]["timestamp_dt"]
+                right = alerts_by_id[right_id]
+                right_ts = right.get("timestamp_dt")
                 if right_ts is None:
                     continue
-                if (right_ts - left_ts).total_seconds() > max_seconds:
+
+                delta_seconds = (right_ts - left_ts).total_seconds()
+                if delta_seconds > max_seconds:
                     break
+
                 pair_checks += 1
                 if pair_checks > safe_max_pair_checks:
                     break
-                uf.union(left_id, right_id)
+
+                score_delta = float(reason_weight)
+                reasons = {reason_code}
+
+                if left.get("source_type") and right.get("source_type"):
+                    if left["source_type"] != right["source_type"]:
+                        score_delta += _REASON_WEIGHTS["cross_source"]
+                        reasons.add("cross_source")
+
+                if abs(delta_seconds) <= 12 * 3600.0:
+                    score_delta += _REASON_WEIGHTS["tight_temporal"]
+                    reasons.add("tight_temporal")
+
+                similarity = _jaccard(left.get("token_set") or set(), right.get("token_set") or set())
+                if similarity >= 0.25:
+                    score_delta += _REASON_WEIGHTS["linguistic_overlap_high"]
+                    reasons.add("linguistic_overlap_high")
+                elif similarity >= 0.15:
+                    score_delta += _REASON_WEIGHTS["linguistic_overlap_medium"]
+                    reasons.add("linguistic_overlap_medium")
+
+                _record_pair(
+                    pair_scores=pair_scores,
+                    pair_reasons=pair_reasons,
+                    left_id=left_id,
+                    right_id=right_id,
+                    score_delta=score_delta,
+                    reasons=reasons,
+                )
+
+                if pair_scores.get(_pair_key(left_id, right_id), 0.0) >= link_threshold:
+                    uf.union(left_id, right_id)
+
             if pair_checks > safe_max_pair_checks:
                 break
 
@@ -100,7 +209,7 @@ def build_soi_threads(
 
     try:
         alert_rows = conn.execute(
-            f"""SELECT a.id, a.title, a.url, a.matched_term, a.severity,
+            f"""SELECT a.id, a.title, a.content, a.url, a.matched_term, a.severity,
                       COALESCE(a.ors_score, a.risk_score, 0) AS ors_score,
                       COALESCE(a.tas_score, 0) AS tas_score,
                       COALESCE(a.published_at, a.created_at) AS ts,
@@ -121,12 +230,21 @@ def build_soi_threads(
         alerts_by_id = {}
         for row in alert_rows:
             payload = dict(row)
+            alert_id = int(payload["id"])
             payload["timestamp_dt"] = parse_timestamp(payload.get("ts"))
-            alerts_by_id[int(payload["id"])] = payload
+            payload["token_set"] = _normalize_tokens(
+                f"{payload.get('title', '')} {payload.get('matched_term', '')}"
+            )
+            payload["source_fingerprint"] = _source_fingerprint(
+                payload.get("source_type"), payload.get("url")
+            )
+            alerts_by_id[alert_id] = payload
 
         alert_ids = list(alerts_by_id.keys())
         placeholders = ",".join("?" for _ in alert_ids)
         uf = _UnionFind(alert_ids)
+        pair_scores = defaultdict(float)
+        pair_reasons = defaultdict(set)
 
         poi_rows = conn.execute(
             f"""SELECT ph.alert_id, ph.poi_id, p.name AS poi_name
@@ -142,7 +260,16 @@ def build_soi_threads(
             alert_id = int(row["alert_id"])
             poi_groups[poi_id].add(alert_id)
             poi_name_by_id[poi_id] = row["poi_name"]
-        _connect_pairs(uf, alerts_by_id, poi_groups, safe_window_hours)
+        _connect_pairs(
+            uf,
+            alerts_by_id,
+            poi_groups,
+            safe_window_hours,
+            "shared_poi",
+            _REASON_WEIGHTS["shared_poi"],
+            pair_scores,
+            pair_reasons,
+        )
 
         entity_rows = conn.execute(
             f"""SELECT alert_id, entity_type, entity_value
@@ -151,20 +278,69 @@ def build_soi_threads(
               AND entity_type IN ({",".join("?" for _ in _SHARED_ENTITY_TYPES)})""",
             alert_ids + sorted(_SHARED_ENTITY_TYPES),
         ).fetchall()
+
         entity_groups = defaultdict(set)
+        actor_groups = defaultdict(set)
         for row in entity_rows:
-            key = (row["entity_type"], (row["entity_value"] or "").strip().lower())
-            if not key[1]:
+            entity_type = row["entity_type"]
+            value = (row["entity_value"] or "").strip().lower()
+            if not value:
                 continue
-            entity_groups[key].add(int(row["alert_id"]))
-        _connect_pairs(uf, alerts_by_id, entity_groups, safe_window_hours)
+            alert_id = int(row["alert_id"])
+            if entity_type == "actor_handle":
+                actor_groups[value].add(alert_id)
+            else:
+                entity_groups[(entity_type, value)].add(alert_id)
+
+        _connect_pairs(
+            uf,
+            alerts_by_id,
+            actor_groups,
+            safe_window_hours,
+            "shared_actor_handle",
+            _REASON_WEIGHTS["shared_actor_handle"],
+            pair_scores,
+            pair_reasons,
+        )
+        _connect_pairs(
+            uf,
+            alerts_by_id,
+            entity_groups,
+            safe_window_hours,
+            "shared_entity",
+            _REASON_WEIGHTS["shared_entity"],
+            pair_scores,
+            pair_reasons,
+        )
 
         keyword_groups = defaultdict(set)
+        source_fp_groups = defaultdict(set)
         for alert_id, alert in alerts_by_id.items():
             term = (alert.get("matched_term") or "").strip().lower()
             if term:
                 keyword_groups[term].add(alert_id)
-        _connect_pairs(uf, alerts_by_id, keyword_groups, 24)
+                source_fp_groups[(alert.get("source_fingerprint"), term)].add(alert_id)
+
+        _connect_pairs(
+            uf,
+            alerts_by_id,
+            keyword_groups,
+            24,
+            "matched_term_temporal",
+            _REASON_WEIGHTS["matched_term_temporal"],
+            pair_scores,
+            pair_reasons,
+        )
+        _connect_pairs(
+            uf,
+            alerts_by_id,
+            source_fp_groups,
+            12,
+            "shared_source_fingerprint",
+            _REASON_WEIGHTS["shared_source_fingerprint"],
+            pair_scores,
+            pair_reasons,
+        )
 
         clusters = defaultdict(list)
         for alert_id in alert_ids:
@@ -182,8 +358,11 @@ def build_soi_threads(
         for cluster_ids in clusters.values():
             if len(cluster_ids) < safe_min_cluster:
                 continue
+
+            cluster_set = set(cluster_ids)
             timeline = []
             sources = set()
+            source_types = set()
             matched_terms = set()
             actor_handles = set()
             shared_entities = set()
@@ -209,6 +388,7 @@ def build_soi_threads(
                     }
                 )
                 sources.add(alert.get("source_name") or "unknown")
+                source_types.add(alert.get("source_type") or "unknown")
                 if alert.get("matched_term"):
                     matched_terms.add(alert["matched_term"])
                 max_ors = max(max_ors, float(alert.get("ors_score") or 0.0))
@@ -228,12 +408,43 @@ def build_soi_threads(
             if len(sources) < 2 and not actor_handles and not poi_ids:
                 continue
 
+            cluster_pair_evidence = []
+            for (left_id, right_id), score in pair_scores.items():
+                if left_id in cluster_set and right_id in cluster_set:
+                    reasons = sorted(pair_reasons.get((left_id, right_id), set()))
+                    cluster_pair_evidence.append(
+                        {
+                            "left_alert_id": left_id,
+                            "right_alert_id": right_id,
+                            "score": round(float(score), 3),
+                            "reason_codes": reasons,
+                        }
+                    )
+
+            cluster_pair_evidence.sort(key=lambda item: item["score"], reverse=True)
+            reason_codes = sorted(
+                {
+                    reason
+                    for edge in cluster_pair_evidence
+                    for reason in edge.get("reason_codes", [])
+                    if reason
+                }
+            )
+
+            if cluster_pair_evidence:
+                avg_pair_score = sum(item["score"] for item in cluster_pair_evidence) / len(
+                    cluster_pair_evidence
+                )
+                max_pair_score = cluster_pair_evidence[0]["score"]
+                thread_confidence = round(min(1.0, 0.6 * max_pair_score + 0.4 * avg_pair_score), 3)
+            else:
+                thread_confidence = 0.0
+
             start_ts = timeline[0]["timestamp"]
             end_ts = timeline[-1]["timestamp"]
             poi_names = [poi_name_by_id.get(pid) for pid in sorted(poi_ids) if poi_name_by_id.get(pid)]
 
-            label = None
-            if actor_handles:
+            if actor_handles and "shared_actor_handle" in reason_codes:
                 label = f"Actor {sorted(actor_handles)[0]}"
             elif poi_names:
                 label = f"POI {poi_names[0]}"
@@ -248,11 +459,15 @@ def build_soi_threads(
                     "label": label,
                     "alerts_count": len(cluster_ids),
                     "sources_count": len(sources),
+                    "source_types": sorted(source_types),
                     "sources": sorted(sources),
                     "start_ts": start_ts,
                     "end_ts": end_ts,
                     "max_ors_score": round(max_ors, 3),
                     "max_tas_score": round(max_tas, 3),
+                    "thread_confidence": thread_confidence,
+                    "reason_codes": reason_codes,
+                    "pair_evidence": cluster_pair_evidence[:20],
                     "poi_ids": sorted(poi_ids),
                     "poi_names": poi_names,
                     "actor_handles": sorted(actor_handles),
@@ -264,6 +479,7 @@ def build_soi_threads(
 
         threads.sort(
             key=lambda t: (
+                float(t.get("thread_confidence") or 0.0),
                 float(t.get("max_ors_score") or 0.0),
                 float(t.get("max_tas_score") or 0.0),
                 parse_timestamp(t.get("end_ts")) or utcnow(),

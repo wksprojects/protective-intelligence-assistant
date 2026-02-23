@@ -33,9 +33,17 @@ def _safe_error(error_message, max_len=400):
     return value[:max_len]
 
 
-def mark_source_success(conn, source_id):
+def mark_source_success(conn, source_id, collection_count=None, latency_ms=None):
     if source_id is None:
         return
+    try:
+        safe_collection_count = int(collection_count) if collection_count is not None else None
+    except (TypeError, ValueError):
+        safe_collection_count = None
+    try:
+        safe_latency_ms = round(float(latency_ms), 3) if latency_ms is not None else None
+    except (TypeError, ValueError):
+        safe_latency_ms = None
     conn.execute(
         """UPDATE sources
         SET fail_streak = 0,
@@ -46,9 +54,16 @@ def mark_source_success(conn, source_id):
                     THEN NULL
                 ELSE disabled_reason
             END,
+            last_collection_count = COALESCE(?, last_collection_count),
+            last_latency_ms = COALESCE(?, last_latency_ms),
             last_success_at = ?
         WHERE id = ?""",
-        (utcnow().strftime("%Y-%m-%d %H:%M:%S"), int(source_id)),
+        (
+            safe_collection_count,
+            safe_latency_ms,
+            utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            int(source_id),
+        ),
     )
 
 

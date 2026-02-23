@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS sources (
     last_error TEXT,
     last_success_at TEXT,
     last_failure_at TEXT,
+    last_collection_count INTEGER,
+    last_latency_ms REAL,
     disabled_reason TEXT,
     active INTEGER DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -1,6 +1,6 @@
 # Incident Thread Case Pack
 
-Generated: 2026-02-23 18:14:00 UTC
+Generated: 2026-02-23 18:42:52 UTC
 
 ## Ingestion Summary
 - Telegram prototype alerts ingested this run: **3**
@@ -8,12 +8,13 @@ Generated: 2026-02-23 18:14:00 UTC
 
 ## Thread Snapshot
 - `thread_id`: `soi-5-2`
-- `label`: **Actor anon_b39c**
+- `label`: **Term death threat**
 - alerts: **2**
 - sources: **2** (Chans / Fringe Boards (Prototype), Telegram Public Channels (Prototype))
 - time window: **2026-02-22 09:10:00 → 2026-02-22 11:40:00**
 - max ORS: **53.0**
 - max TAS: **0.0**
+- thread confidence: **0.45**
 - recommended escalation tier: **ROUTINE**
 
 ## Correlation Evidence
@@ -21,8 +22,9 @@ Generated: 2026-02-23 18:14:00 UTC
 - shared entities: none
 - matched terms: death threat
 - linked POIs: none
+- reason codes: cross_source, linguistic_overlap_medium, matched_term_temporal, tight_temporal
 
-- Actor-handle evidence present; validate continuity during analyst review.
+- Actor handles present but not shared; continuity requires analyst validation.
 - Multi-source corroboration across independent feeds.
 - Recurring threat vocabulary over a constrained time window.
 

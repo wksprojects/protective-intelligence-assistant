@@ -4,6 +4,8 @@ Automated behavioral threat assessment via multi-source correlation for protecti
 
 The platform ingests open-source signals, links related activity into incident threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
 
+Quant hook: implements a multi-weighted scoring engine for cross-platform entity resolution and incident threading.
+
 ## What This Project Demonstrates
 
 - Protective intelligence workflow design, not just alert scraping.
@@ -71,7 +73,7 @@ flowchart LR
         SITREP["SITREP"]
     end
 
-    DB[("SQLite")]
+    DB["SQLite"]
     API["FastAPI"]
     UI["Streamlit"]
 
@@ -124,22 +126,39 @@ Note: vector index/semantic matching is planned, not in the current production p
 
 ### 2) Entity Resolution and Correlation (Current)
 
-SOI threads are currently linked by rule-based evidence plus temporal proximity:
+SOI threading uses a weighted pair-link model with explicit reason codes.
+Alerts are linked into a thread when cumulative linkage confidence clears the threshold.
 
-- shared POI hits
-- shared entities (`actor_handle`, `domain`, `ipv4`, `url`)
-- shared matched threat term
-- configurable time window (default 72h; term-level link window 24h)
+Primary linkage signals:
 
-Output: clustered incident timelines instead of isolated alerts.
+- shared actor handle
+- shared POI hit
+- shared non-actor entities (`domain`, `ipv4`, `url`)
+- matched-term temporal overlap
+- source fingerprint overlap
+- cross-source corroboration bonus
+- tight temporal proximity bonus
+- lightweight linguistic overlap bonus
 
-### 3) Planned Correlation Upgrade
+Output fields include:
 
-Planned next step is a weighted confidence model with reason codes, adding:
+- `thread_confidence`
+- `reason_codes`
+- `pair_evidence`
+- analyst timeline by source/type/time
 
-- linguistic similarity/fingerprinting
-- stronger cross-source actor linking
-- explicit thread confidence score
+### 3) Signal Taxonomy
+
+The system collects and scores signals as indicator classes, not only keyword hits.
+
+| Signal Class | Examples |
+|---|---|
+| Intent-to-harm | direct threats, attack statements, explicit harm language |
+| Targeting specificity | named principal/facility, route/time references |
+| Pathway/capability | logistics, access points, recon indicators, operational planning |
+| PII/Exposure | doxxing, leak references, personal data exposure cues |
+| Operational coordination | protest/disruption mobilization and coordination language |
+| Grievance/Sentiment | escalating grievance, fixation, hostile framing (supporting signal) |
 
 ## Quick Start
 
@@ -171,6 +190,12 @@ make casepack
 ```
 
 `make casepack` runs in an isolated temporary database so it does not modify your operational/local alert corpus.
+
+Generate a compact benchmark table for portfolio/interview use:
+
+```bash
+make benchmark
+```
 
 ## Environment-Gated Collection Modes
 
@@ -254,6 +279,7 @@ make evaluate
 Output:
 
 - `docs/evaluation_memo.md`
+- `docs/benchmark_table.md` (via `make benchmark`)
 
 Current repo also includes:
 
@@ -261,7 +287,7 @@ Current repo also includes:
 - ML comparison endpoint (`GET /analytics/ml-comparison`)
 - precision/recall analytics endpoint (`GET /analytics/evaluation`)
 
-## Source Health Telemetry (Current vs Next)
+## Source Health Telemetry
 
 Current persisted fields include:
 
@@ -270,12 +296,14 @@ Current persisted fields include:
 - `last_error`
 - `last_success_at`
 - `last_failure_at`
+- `last_collection_count`
+- `last_latency_ms`
 - `disabled_reason`
+
+`/analytics/source-health` redacts raw error text by default (`include_errors=1` to include error details).
 
 Planned telemetry additions:
 
-- per-collector latency
-- last collection count
 - uptime rollups and SLO reporting
 
 ## Deployment
@@ -291,13 +319,21 @@ Run locally:
 docker compose up --build
 ```
 
+## Modular Code Layout
+
+Incremental modularization is now in place:
+
+- `collectors/` for ingestion facades and pipeline entrypoints
+- `processor/` for correlation/processing facades
+- `evals/` for benchmark and signal-quality evaluation facades
+
 ## Testing
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-Current suite status: 75 passing tests.
+Current suite status: 81 passing tests.
 
 ## Legal and Operational Note
 

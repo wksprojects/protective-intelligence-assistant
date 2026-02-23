@@ -97,6 +97,28 @@ def test_source_health_endpoint_reflects_skipped_state(client):
     assert "credentials not configured" in (source_with_errors["last_error"] or "")
 
 
+def test_source_health_records_collection_count_and_latency(client):
+    conn = get_connection()
+    source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
+    mark_source_success(conn, source_id, collection_count=7, latency_ms=123.4567)
+    row = conn.execute(
+        "SELECT last_collection_count, last_latency_ms FROM sources WHERE id = ?",
+        (source_id,),
+    ).fetchone()
+    conn.commit()
+    conn.close()
+
+    assert row["last_collection_count"] == 7
+    assert round(float(row["last_latency_ms"] or 0.0), 3) == 123.457
+
+    response = client.get("/analytics/source-health")
+    assert response.status_code == 200
+    payload = response.json()
+    source = next(item for item in payload if item["id"] == source_id)
+    assert source["last_collection_count"] == 7
+    assert round(float(source["last_latency_ms"] or 0.0), 3) == 123.457
+
+
 def test_source_health_manual_disable_is_not_reactivated(client):
     conn = get_connection()
     source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
@@ -223,6 +245,10 @@ def test_soi_threads_endpoint_clusters_related_alerts(client):
     for thread in threads:
         alert_ids = {row["alert_id"] for row in thread.get("timeline", [])}
         if first_alert in alert_ids and second_alert in alert_ids:
+            assert float(thread.get("thread_confidence") or 0.0) > 0.0
+            assert "shared_actor_handle" in (thread.get("reason_codes") or [])
+            assert isinstance(thread.get("pair_evidence"), list)
+            assert len(thread["pair_evidence"]) >= 1
             matched = True
             break
     assert matched

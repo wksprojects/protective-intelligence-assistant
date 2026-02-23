@@ -761,6 +761,7 @@ def get_source_health(
     conn = get_connection()
     query = """SELECT id, name, url, source_type, active, credibility_score,
                       fail_streak, last_status, last_error, last_success_at, last_failure_at,
+                      last_collection_count, last_latency_ms,
                       disabled_reason
         FROM sources
         WHERE 1=1"""
@@ -834,9 +835,9 @@ def get_soi_threads(
     include_demo: int = Query(default=0, ge=0, le=1),
 ):
     """Cluster related alerts into SOI timelines using shared actors/POIs/entities."""
-    from analytics.soi_threads import build_soi_threads
+    from processor.correlation import build_incident_threads
 
-    return build_soi_threads(
+    return build_incident_threads(
         days=days,
         window_hours=window_hours,
         min_cluster_size=min_cluster_size,
@@ -848,9 +849,9 @@ def get_soi_threads(
 @app.get("/analytics/signal-quality", dependencies=[Depends(verify_api_key)])
 def get_signal_quality(window_days: int = Query(default=30, ge=7, le=365)):
     """Compute precision-oriented signal quality by source/category."""
-    from analytics.signal_quality import compute_signal_quality
+    from evals.signal_quality import compute_signal_quality_view
 
-    return compute_signal_quality(window_days=window_days)
+    return compute_signal_quality_view(window_days=window_days)
 
 
 @app.get("/analytics/ml-comparison", dependencies=[Depends(verify_api_key)])
@@ -1640,17 +1641,17 @@ def trigger_social_media_scrape():
 @app.post("/scrape/telegram", dependencies=[Depends(verify_api_key)])
 def trigger_telegram_scrape():
     """Trigger Telegram prototype collector (fixture-first, env-gated)."""
-    from scraper.telegram_collector import run_telegram_collector
+    from collectors.telegram import collect_telegram
 
-    return {"ingested": run_telegram_collector(), "source": "telegram_prototype"}
+    return {"ingested": collect_telegram(), "source": "telegram_prototype"}
 
 
 @app.post("/scrape/chans", dependencies=[Depends(verify_api_key)])
 def trigger_chans_scrape():
     """Trigger chans prototype collector (fixture-first, env-gated)."""
-    from scraper.chans_collector import run_chans_collector
+    from collectors.chans import collect_chans
 
-    return {"ingested": run_chans_collector(), "source": "chans_prototype"}
+    return {"ingested": collect_chans(), "source": "chans_prototype"}
 
 
 @app.get("/analytics/escalation-tiers", dependencies=[Depends(verify_api_key)])

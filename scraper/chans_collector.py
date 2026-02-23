@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 from pathlib import Path
 
 from analytics.dedup import check_duplicate
@@ -74,6 +75,7 @@ def _resolve_keyword_id(conn, keyword_cache, post, combined_text):
 def run_chans_collector(frequency_snapshot=None):
     conn = get_connection()
     source_id = None
+    started_at = time.perf_counter()
     try:
         source_id = _ensure_source(conn)
         if not _enabled():
@@ -169,7 +171,8 @@ def run_chans_collector(frequency_snapshot=None):
             increment_keyword_frequency(conn, keyword_id)
             created += 1
 
-        mark_source_success(conn, source_id)
+        elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+        mark_source_success(conn, source_id, collection_count=created, latency_ms=elapsed_ms)
         conn.commit()
         print(f"Chans collector complete. {created} new alerts, {duplicates} duplicates skipped.")
         return created

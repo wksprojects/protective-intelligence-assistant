@@ -269,6 +269,8 @@ def migrate_schema():
         "ALTER TABLE sources ADD COLUMN last_error TEXT",
         "ALTER TABLE sources ADD COLUMN last_success_at TEXT",
         "ALTER TABLE sources ADD COLUMN last_failure_at TEXT",
+        "ALTER TABLE sources ADD COLUMN last_collection_count INTEGER",
+        "ALTER TABLE sources ADD COLUMN last_latency_ms REAL",
         "ALTER TABLE sources ADD COLUMN disabled_reason TEXT",
         "ALTER TABLE alerts ADD COLUMN risk_score REAL DEFAULT 0.0",
         "ALTER TABLE alerts ADD COLUMN content_hash TEXT",
