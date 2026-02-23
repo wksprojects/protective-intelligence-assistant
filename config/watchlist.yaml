@@ -83,8 +83,6 @@ sources:
       url: "https://travel.state.gov/_res/rss/TAsTWs.xml"
     - name: "CDC Travel Health Notices"
       url: "https://wwwnc.cdc.gov/travel/rss/notices.xml"
-    - name: "WHO Disease Outbreak News"
-      url: "https://www.who.int/feeds/entity/csr/don/en/rss.xml"
     - name: "GDELT PI/EP Watch"
       gdelt_query: '("threat to CEO" OR swatting OR doxxing OR "death threat" OR kidnapping OR "bomb threat" OR protest OR unrest) AND (executive OR CEO OR headquarters OR office OR venue)'
       credibility_score: 0.6

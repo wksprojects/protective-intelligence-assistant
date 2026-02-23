@@ -810,7 +810,6 @@ def seed_default_sources():
         sources = [
             ("State Dept Travel Alerts/Warnings", "https://travel.state.gov/_res/rss/TAsTWs.xml", "rss", 0.9),
             ("CDC Travel Health Notices", "https://wwwnc.cdc.gov/travel/rss/notices.xml", "rss", 0.85),
-            ("WHO Disease Outbreak News", "https://www.who.int/feeds/entity/csr/don/en/rss.xml", "rss", 0.85),
             (
                 "GDELT PI/EP Watch",
                 build_gdelt_rss_url(DEFAULT_GDELT_PI_EP_QUERY),
@@ -840,6 +839,12 @@ def seed_default_sources():
         SET source_type = 'demo', active = 0
         WHERE LOWER(name) LIKE 'demo %'
            OR url LIKE 'https://example.org/demo-%'"""
+    )
+    # WHO DON RSS endpoint has been returning 404; disable to avoid scrape noise.
+    conn.execute(
+        """UPDATE sources
+        SET active = 0
+        WHERE url = 'https://www.who.int/feeds/entity/csr/don/en/rss.xml'"""
     )
     conn.commit()
     conn.close()

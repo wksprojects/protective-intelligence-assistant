@@ -41,6 +41,13 @@ def parse_entry_published_at(entry):
 
 def fetch_rss_feed(url):
     feed = feedparser.parse(url)
+    status = getattr(feed, "status", None)
+    if status and int(status) >= 400:
+        print(f"RSS fetch HTTP {status} for {url}")
+    if getattr(feed, "bozo", 0) and not feed.entries:
+        bozo_exc = getattr(feed, "bozo_exception", None)
+        if bozo_exc is not None:
+            print(f"RSS parse warning for {url}: {type(bozo_exc).__name__}: {bozo_exc}")
     entries = []
     for entry in feed.entries:
         entries.append(

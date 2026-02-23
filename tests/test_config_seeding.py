@@ -146,6 +146,37 @@ def test_seed_default_sources_supports_darkweb_yaml_block(tmp_path, monkeypatch)
     assert row["credibility_score"] == db_init.SOURCE_DEFAULT_CREDIBILITY["darkweb"]
 
 
+def test_seed_default_sources_disables_retired_who_feed(tmp_path, monkeypatch):
+    db_path = tmp_path / "sources_disable_who.db"
+    monkeypatch.setattr(db_init, "DB_PATH", str(db_path))
+
+    db_init.init_db()
+    db_init.migrate_schema()
+    conn = db_init.get_connection()
+    conn.execute(
+        "INSERT INTO sources (name, url, source_type, active) VALUES (?, ?, ?, 1)",
+        (
+            "WHO Disease Outbreak News",
+            "https://www.who.int/feeds/entity/csr/don/en/rss.xml",
+            "rss",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    db_init.seed_default_sources()
+
+    conn = db_init.get_connection()
+    row = conn.execute(
+        "SELECT active FROM sources WHERE url = ?",
+        ("https://www.who.int/feeds/entity/csr/don/en/rss.xml",),
+    ).fetchone()
+    conn.close()
+
+    assert row is not None
+    assert row["active"] == 0
+
+
 def test_seed_default_keywords_respects_explicit_weight(tmp_path, monkeypatch):
     db_path = tmp_path / "keywords_weighted_seed.db"
     watchlist_path = tmp_path / "watchlist.yaml"
@@ -228,7 +259,6 @@ def test_seed_default_sources_includes_pi_ep_feeds_from_default_watchlist(tmp_pa
     by_name = {row["name"]: row["url"] for row in rows}
 
     assert "https://travel.state.gov/_res/rss/TAsTWs.xml" in urls
-    assert "https://www.who.int/feeds/entity/csr/don/en/rss.xml" in urls
     assert "https://wwwnc.cdc.gov/travel/rss/notices.xml" in urls
     assert "GDELT PI/EP Watch" in by_name
     assert by_name["GDELT PI/EP Watch"] == db_init.build_gdelt_rss_url(

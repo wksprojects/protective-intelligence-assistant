@@ -32,7 +32,7 @@ Protectee Risk screenshot is shown in a cold-start state (`TAS`/`Tier` dashes in
 ```mermaid
 flowchart LR
     subgraph Sources
-        RSS[State Dept / CDC / WHO]
+        RSS[State Dept / CDC]
         GDELT[GDELT PI-EP Watch]
         Reddit[Reddit RSS]
         Paste[Pastebin Archive]
@@ -117,7 +117,7 @@ pip install -r requirements.txt
 make clean && make init && make scrape
 ```
 `make init` seeds the DB from `config/watchlist.yaml` (protectees, locations, keywords, sources).
-`make scrape` pulls live alerts from those sources (State Dept, CDC, WHO, GDELT, Reddit, Pastebin).
+`make scrape` pulls live alerts from those sources (State Dept, CDC, GDELT, Reddit, Pastebin).
 
 2. Start API and dashboard in separate terminals.
 ```bash
@@ -421,7 +421,7 @@ make smoke   # smoke test
 ## Safe Source Policy
 
 **Shipped by default:**
-- RSS (State Dept / CDC / WHO / GDELT PI-EP watch)
+- RSS (State Dept / CDC / GDELT PI-EP watch)
 - Reddit RSS (r/OSINT, r/security)
 - Pastebin archive monitor
 - Optional ACLED connector (env-gated: `ACLED_API_KEY` + `ACLED_EMAIL`)

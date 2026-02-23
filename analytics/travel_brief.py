@@ -87,8 +87,7 @@ def generate_travel_brief(
             JOIN sources s ON s.id = a.source_id
             WHERE s.name IN (
                 'State Dept Travel Alerts/Warnings',
-                'CDC Travel Health Notices',
-                'WHO Disease Outbreak News'
+                'CDC Travel Health Notices'
             )
               AND (LOWER(a.title) LIKE ? OR LOWER(COALESCE(a.content, '')) LIKE ?)
               {demo_filter}
@@ -133,7 +132,7 @@ def generate_travel_brief(
             lines.append("- No high-confidence internal alerts for this destination/time window.")
 
         lines.append("")
-        lines.append("## State Dept / CDC / WHO Mentions")
+        lines.append("## State Dept / CDC Mentions")
         if travel_feed_rows:
             for row in travel_feed_rows[:15]:
                 lines.append(f"- {row['source_name']}: {row['title']}")

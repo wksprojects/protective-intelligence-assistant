@@ -83,6 +83,8 @@ def _build_run_frequency_snapshot():
 # Concurrency control: limit parallel requests to avoid overwhelming targets
 _MAX_CONCURRENT_REQUESTS = 10
 _semaphore = None
+_ASYNC_FETCH_RETRIES = 2
+_ASYNC_FETCH_TIMEOUT_SECONDS = 25
 _RSS_FETCH_HEADERS = {
     "User-Agent": "ProtectiveIntelAssistant/0.1 (+https://localhost)",
     "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
@@ -96,18 +98,48 @@ def _get_semaphore():
     return _semaphore
 
 
-async def _fetch_url_async(session, url, timeout=15):
-    """Fetch a URL asynchronously with concurrency limiting, return text content."""
-    try:
-        async with _get_semaphore():
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-                if resp.status >= 400:
-                    print(f"Async fetch HTTP {resp.status} for {url}")
+async def _fetch_url_async(
+    session,
+    url,
+    timeout=_ASYNC_FETCH_TIMEOUT_SECONDS,
+    retries=_ASYNC_FETCH_RETRIES,
+):
+    """Fetch a URL asynchronously with concurrency limiting and lightweight retry."""
+    attempts = max(1, int(retries))
+    for attempt in range(1, attempts + 1):
+        try:
+            async with _get_semaphore():
+                async with session.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(total=timeout),
+                    allow_redirects=True,
+                ) as resp:
+                    if resp.status == 404:
+                        print(f"Async fetch HTTP 404 for {url}")
+                        return None
+                    if resp.status in {429, 500, 502, 503, 504} and attempt < attempts:
+                        await asyncio.sleep(0.75 * attempt)
+                        continue
+                    if resp.status >= 400:
+                        print(f"Async fetch HTTP {resp.status} for {url}")
+                        return None
+                    text = await resp.text()
+                    if text:
+                        return text
+                    if attempt < attempts:
+                        await asyncio.sleep(0.75 * attempt)
+                        continue
                     return None
-                return await resp.text()
-    except Exception as e:
-        print(f"Async fetch error for {url}: {e}")
-        return None
+        except Exception as e:
+            if attempt < attempts:
+                await asyncio.sleep(0.75 * attempt)
+                continue
+            print(
+                f"Async fetch error for {url}: "
+                f"{type(e).__name__}: {e!r}"
+            )
+            return None
+    return None
 
 
 def _make_aiohttp_session():
