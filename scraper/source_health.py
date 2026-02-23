@@ -41,8 +41,11 @@ def mark_source_success(conn, source_id):
         SET fail_streak = 0,
             last_status = 'ok',
             last_error = NULL,
-            disabled_reason = NULL,
-            active = 1,
+            disabled_reason = CASE
+                WHEN active = 1 AND COALESCE(disabled_reason, '') LIKE 'auto-disabled%'
+                    THEN NULL
+                ELSE disabled_reason
+            END,
             last_success_at = ?
         WHERE id = ?""",
         (utcnow().strftime("%Y-%m-%d %H:%M:%S"), int(source_id)),

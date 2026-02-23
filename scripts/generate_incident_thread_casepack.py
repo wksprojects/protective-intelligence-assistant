@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,18 +20,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from analytics.soi_threads import build_soi_threads
-from analytics.utils import parse_timestamp, utcnow
-from database.init_db import (
-    get_connection,
-    init_db,
-    migrate_schema,
-    seed_default_events,
-    seed_default_keywords,
-    seed_default_pois,
-    seed_default_protected_locations,
-    seed_default_sources,
-    seed_threat_actors,
-)
+from database import init_db as db_init
 from scraper.chans_collector import run_chans_collector
 from scraper.telegram_collector import run_telegram_collector
 
@@ -53,15 +43,31 @@ def _force_env(**overrides):
                 os.environ[key] = previous
 
 
+@contextmanager
+def _isolated_db():
+    old_db_path = db_init.DB_PATH
+    fd, temp_db_path = tempfile.mkstemp(prefix="pi_casepack_", suffix=".db")
+    os.close(fd)
+    try:
+        db_init.DB_PATH = temp_db_path
+        yield
+    finally:
+        db_init.DB_PATH = old_db_path
+        try:
+            os.remove(temp_db_path)
+        except OSError:
+            pass
+
+
 def _ensure_initialized():
-    init_db()
-    migrate_schema()
-    seed_default_sources()
-    seed_default_keywords()
-    seed_default_pois()
-    seed_default_protected_locations()
-    seed_default_events()
-    seed_threat_actors()
+    db_init.init_db()
+    db_init.migrate_schema()
+    db_init.seed_default_sources()
+    db_init.seed_default_keywords()
+    db_init.seed_default_pois()
+    db_init.seed_default_protected_locations()
+    db_init.seed_default_events()
+    db_init.seed_threat_actors()
 
 
 def _collect_fixture_sources():
@@ -71,118 +77,16 @@ def _collect_fixture_sources():
     return int(telegram_count), int(chans_count)
 
 
-def _ensure_source(conn, source_type, name, url, credibility):
-    row = conn.execute(
-        "SELECT id FROM sources WHERE source_type = ? ORDER BY id LIMIT 1",
-        (source_type,),
-    ).fetchone()
-    if row:
-        return int(row["id"])
-    conn.execute(
-        """INSERT INTO sources (name, url, source_type, credibility_score, active)
-        VALUES (?, ?, ?, ?, 1)""",
-        (name, url, source_type, float(credibility)),
-    )
-    return int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
-
-
-def _ensure_keyword(conn, term, category="protective_intel", weight=4.8):
-    row = conn.execute("SELECT id FROM keywords WHERE term = ?", (term,)).fetchone()
-    if row:
-        return int(row["id"])
-    conn.execute(
-        "INSERT INTO keywords (term, category, weight, active) VALUES (?, ?, ?, 1)",
-        (term, category, float(weight)),
-    )
-    return int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
-
-
-def _seed_bridge_thread():
-    now = utcnow()
-    conn = get_connection()
-    try:
-        telegram_source_id = _ensure_source(
-            conn,
-            source_type="telegram",
-            name="Telegram Public Channels (Prototype)",
-            url="https://t.me",
-            credibility=0.35,
-        )
-        chans_source_id = _ensure_source(
-            conn,
-            source_type="chans",
-            name="Chans / Fringe Boards (Prototype)",
-            url="https://boards.4chan.org",
-            credibility=0.2,
-        )
-        keyword_id = _ensure_keyword(conn, "death threat", category="protective_intel", weight=5.0)
-
-        alerts = [
-            {
-                "source_id": telegram_source_id,
-                "title": "Cross-platform threat escalation (Telegram)",
-                "content": "Subject posts timeline and route details before principal event.",
-                "url": "https://t.me/cross_platform_watch/9001",
-                "published_at": (now.replace(microsecond=0)).strftime("%Y-%m-%d %H:%M:%S"),
-                "ors_score": 91.0,
-                "tas_score": 48.0,
-                "severity": "high",
-            },
-            {
-                "source_id": chans_source_id,
-                "title": "Cross-platform threat escalation (chans)",
-                "content": "Same handle repeats intent language and references event location.",
-                "url": "https://boards.4chan.org/pol/thread/cross-9002",
-                "published_at": (
-                    now.replace(microsecond=0)
-                ).strftime("%Y-%m-%d %H:%M:%S"),
-                "ors_score": 88.0,
-                "tas_score": 44.0,
-                "severity": "high",
-            },
-        ]
-        actor_handle = "@crossplatform_subject"
-        for item in alerts:
-            exists = conn.execute("SELECT id FROM alerts WHERE url = ?", (item["url"],)).fetchone()
-            if exists:
-                alert_id = int(exists["id"])
-            else:
-                conn.execute(
-                    """INSERT INTO alerts
-                    (source_id, keyword_id, title, content, url, matched_term, severity,
-                     published_at, ors_score, tas_score)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        item["source_id"],
-                        keyword_id,
-                        item["title"],
-                        item["content"],
-                        item["url"],
-                        "death threat",
-                        item["severity"],
-                        item["published_at"],
-                        item["ors_score"],
-                        item["tas_score"],
-                    ),
-                )
-                alert_id = int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
-
-            conn.execute(
-                """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value)
-                VALUES (?, 'actor_handle', ?)""",
-                (alert_id, actor_handle),
-            )
-        conn.commit()
-    finally:
-        conn.close()
-
-
 def _choose_thread(threads):
     if not threads:
         return None
 
     def _score(thread):
-        source_types = {item.get("source_type") for item in thread.get("timeline", []) if item.get("source_type")}
+        source_types = {
+            item.get("source_type")
+            for item in thread.get("timeline", [])
+            if item.get("source_type")
+        }
         has_cross = 1 if {"telegram", "chans"}.issubset(source_types) else 0
         return (
             has_cross,
@@ -194,11 +98,6 @@ def _choose_thread(threads):
     return sorted(threads, key=_score, reverse=True)[0]
 
 
-def _is_cross_platform(thread):
-    source_types = {item.get("source_type") for item in thread.get("timeline", []) if item.get("source_type")}
-    return {"telegram", "chans"}.issubset(source_types)
-
-
 def _escalation_tier(score):
     if score >= 85:
         return "CRITICAL"
@@ -207,6 +106,31 @@ def _escalation_tier(score):
     if score >= 40:
         return "ROUTINE"
     return "LOW"
+
+
+def _render_no_thread_casepack(telegram_count, chans_count):
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    lines = [
+        "# Incident Thread Case Pack",
+        "",
+        f"Generated: {generated_at}",
+        "",
+        "## Ingestion Summary",
+        f"- Telegram prototype alerts ingested this run: **{telegram_count}**",
+        f"- Chans prototype alerts ingested this run: **{chans_count}**",
+        "",
+        "## Result",
+        "No correlated SOI thread met the current clustering thresholds in this isolated run.",
+        "",
+        "## Reproduce",
+        "```bash",
+        "make init",
+        "PI_ENABLE_TELEGRAM_COLLECTOR=1 PI_ENABLE_CHANS_COLLECTOR=1 python run.py scrape",
+        'curl "http://localhost:8000/analytics/soi-threads?days=14&window_hours=72&min_cluster_size=2"',
+        "```",
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def _render_casepack(thread, telegram_count, chans_count):
@@ -233,6 +157,7 @@ def _render_casepack(thread, telegram_count, chans_count):
     shared_entities = ", ".join(thread.get("shared_entities") or []) or "none"
     matched_terms = ", ".join(thread.get("matched_terms") or []) or "none"
     poi_names = ", ".join(thread.get("poi_names") or []) or "none"
+
     evidence_notes = []
     if thread.get("actor_handles"):
         evidence_notes.append("Actor-handle evidence present; validate continuity during analyst review.")
@@ -307,19 +232,22 @@ def _render_casepack(thread, telegram_count, chans_count):
 
 
 def main():
-    _ensure_initialized()
-    telegram_count, chans_count = _collect_fixture_sources()
-
-    threads = build_soi_threads(days=30, window_hours=72, min_cluster_size=2, include_demo=False)
-    selected = _choose_thread(threads)
-    if selected is None or (not _is_cross_platform(selected)) or float(selected.get("max_ors_score") or 0.0) < 75.0:
-        _seed_bridge_thread()
+    with _isolated_db():
+        _ensure_initialized()
+        telegram_count, chans_count = _collect_fixture_sources()
         threads = build_soi_threads(days=30, window_hours=72, min_cluster_size=2, include_demo=False)
         selected = _choose_thread(threads)
-    if selected is None:
-        raise RuntimeError("Unable to generate incident thread case pack: no correlated threads found.")
 
     DOCS_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    if selected is None:
+        DOCS_OUTPUT.write_text(
+            _render_no_thread_casepack(telegram_count=telegram_count, chans_count=chans_count),
+            encoding="utf-8",
+        )
+        print(f"Incident thread case pack written: {DOCS_OUTPUT}")
+        print("  No correlated thread found in isolated run.")
+        return
+
     DOCS_OUTPUT.write_text(
         _render_casepack(selected, telegram_count=telegram_count, chans_count=chans_count),
         encoding="utf-8",

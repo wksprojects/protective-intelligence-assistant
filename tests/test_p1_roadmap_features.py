@@ -1,6 +1,8 @@
 from datetime import timedelta
+from textwrap import dedent
 
 from analytics.utils import utcnow
+from database import init_db as db_init
 from database.init_db import get_connection
 from scraper.source_health import mark_source_failure, mark_source_skipped, mark_source_success
 
@@ -58,6 +60,7 @@ def test_source_health_failure_threshold_and_recovery(client, monkeypatch):
     assert "auto-disabled" in (row["disabled_reason"] or "")
     assert "timeout again" in (row["last_error"] or "")
 
+    conn.execute("UPDATE sources SET active = 1 WHERE id = ?", (source_id,))
     mark_source_success(conn, source_id)
     row = conn.execute(
         "SELECT fail_streak, active, last_status, last_error, disabled_reason FROM sources WHERE id = ?",
@@ -85,7 +88,34 @@ def test_source_health_endpoint_reflects_skipped_state(client):
     payload = response.json()
     source = next(item for item in payload if item["id"] == source_id)
     assert source["last_status"] == "skipped"
-    assert "credentials not configured" in (source["last_error"] or "")
+    assert source["last_error"] is None
+
+    response_with_errors = client.get("/analytics/source-health", params={"include_errors": 1})
+    assert response_with_errors.status_code == 200
+    payload_with_errors = response_with_errors.json()
+    source_with_errors = next(item for item in payload_with_errors if item["id"] == source_id)
+    assert "credentials not configured" in (source_with_errors["last_error"] or "")
+
+
+def test_source_health_manual_disable_is_not_reactivated(client):
+    conn = get_connection()
+    source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
+    conn.execute(
+        "UPDATE sources SET active = 0, disabled_reason = ? WHERE id = ?",
+        ("manual disable", source_id),
+    )
+    mark_source_success(conn, source_id)
+    row = conn.execute(
+        "SELECT active, disabled_reason, fail_streak, last_status FROM sources WHERE id = ?",
+        (source_id,),
+    ).fetchone()
+    conn.commit()
+    conn.close()
+
+    assert row["active"] == 0
+    assert row["disabled_reason"] == "manual disable"
+    assert row["fail_streak"] == 0
+    assert row["last_status"] == "ok"
 
 
 def test_source_presets_endpoint_returns_location_previews(client):
@@ -106,6 +136,36 @@ def test_source_presets_endpoint_returns_location_previews(client):
     assert first_preview["scope_type"] == "location"
     assert first_preview["source_type"] == "reddit"
     assert first_preview["suggested_name"]
+
+
+def test_source_presets_endpoint_tolerates_malformed_templates(client, tmp_path, monkeypatch):
+    watchlist_path = tmp_path / "watchlist_bad_template.yaml"
+    watchlist_path.write_text(
+        dedent(
+            """
+            keywords: {}
+            sources: {}
+            targeted_source_presets:
+              - name: "Broken Template Preset"
+                scope: "location"
+                source_type: "reddit"
+                name_template: "Broken {location_name"
+                url_template: "https://www.reddit.com/r/{location_slug}/.rss"
+                enabled: true
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(db_init, "WATCHLIST_CONFIG_PATH", str(watchlist_path))
+
+    response = client.get("/analytics/source-presets")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["presets"]
+    broken = next(item for item in payload["presets"] if item["name"] == "Broken Template Preset")
+    assert broken["preview"]
+    assert broken["preview"][0]["suggested_name"] == "Broken Template Preset"
 
 
 def test_soi_threads_endpoint_clusters_related_alerts(client):
@@ -231,6 +291,37 @@ def test_signal_quality_endpoint_aggregates_precision(client):
     )
     assert first_source_metrics["classified"] == 2
     assert first_source_metrics["precision"] == 0.5
+
+
+def test_signal_quality_uses_latest_disposition_per_alert(client):
+    conn = get_connection()
+    source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()["id"]
+    alert_id = _insert_alert(
+        conn,
+        source_id=source_id,
+        keyword_id=keyword_id,
+        title="Disposition overwrite sample",
+        url="https://example.com/quality-overwrite",
+        matched_term="death threat",
+    )
+    conn.execute(
+        "INSERT INTO dispositions (alert_id, status, rationale, user, created_at) VALUES (?, ?, ?, ?, datetime('now', '-5 seconds'))",
+        (alert_id, "false_positive", "initial", "test"),
+    )
+    conn.execute(
+        "INSERT INTO dispositions (alert_id, status, rationale, user, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+        (alert_id, "true_positive", "final", "test"),
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get("/analytics/signal-quality", params={"window_days": 30})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["overall_window"]["classified"] == 1
+    assert payload["overall_window"]["true_positive"] == 1
+    assert payload["overall_window"]["false_positive"] == 0
 
 
 def test_telegram_and_chans_scrape_endpoints_respect_env_gates(client, monkeypatch):

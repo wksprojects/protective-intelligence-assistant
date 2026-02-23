@@ -1,23 +1,23 @@
 # Incident Thread Case Pack
 
-Generated: 2026-02-23 18:04:36 UTC
+Generated: 2026-02-23 18:14:00 UTC
 
 ## Ingestion Summary
-- Telegram prototype alerts ingested this run: **0**
-- Chans prototype alerts ingested this run: **0**
+- Telegram prototype alerts ingested this run: **3**
+- Chans prototype alerts ingested this run: **3**
 
 ## Thread Snapshot
-- `thread_id`: `soi-365-2`
-- `label`: **Actor @crossplatform_subject**
+- `thread_id`: `soi-5-2`
+- `label`: **Actor anon_b39c**
 - alerts: **2**
 - sources: **2** (Chans / Fringe Boards (Prototype), Telegram Public Channels (Prototype))
-- time window: **2026-02-23 18:04:36 → 2026-02-23 18:04:36**
-- max ORS: **91.0**
-- max TAS: **48.0**
-- recommended escalation tier: **CRITICAL**
+- time window: **2026-02-22 09:10:00 → 2026-02-22 11:40:00**
+- max ORS: **53.0**
+- max TAS: **0.0**
+- recommended escalation tier: **ROUTINE**
 
 ## Correlation Evidence
-- actor handles: @crossplatform_subject
+- actor handles: anon_b39c, city_grievance_watch
 - shared entities: none
 - matched terms: death threat
 - linked POIs: none
@@ -29,11 +29,11 @@ Generated: 2026-02-23 18:04:36 UTC
 ## Timeline
 | Timestamp | Source | Type | ORS | TAS | Matched Term | Title |
 |---|---|---|---:|---:|---|---|
-| 2026-02-23 18:04:36 | Telegram Public Channels (Prototype) | telegram | 91.0 | 48.0 | death threat | Cross-platform threat escalation (Telegram) |
-| 2026-02-23 18:04:36 | Chans / Fringe Boards (Prototype) | chans | 88.0 | 44.0 | death threat | Cross-platform threat escalation (chans) |
+| 2026-02-22 09:10:00 | Telegram Public Channels (Prototype) | telegram | 53.0 | 0.0 | death threat | Repeated grievance escalation toward executive |
+| 2026-02-22 11:40:00 | Chans / Fringe Boards (Prototype) | chans | 38.2 | 0.0 | death threat | /b/ post with explicit threat language |
 
 ## Analyst Action
-Immediate escalation to protective detail lead and intelligence manager (target: 30 minutes).
+Maintain monitoring queue and reassess at next collection cycle.
 
 ## Reproduce
 ```bash

@@ -20,7 +20,10 @@ def _safe_format(template, context):
         def __missing__(self, key):
             return ""
 
-    return string.Formatter().vformat(template, (), _SafeDict(context)).strip()
+    try:
+        return string.Formatter().vformat(template, (), _SafeDict(context)).strip()
+    except (KeyError, ValueError, IndexError):
+        return ""
 
 
 def _build_event_contexts(conn, horizon_days=30):

@@ -753,7 +753,10 @@ def get_performance_metrics(limit: int = Query(default=20, le=100)):
 
 
 @app.get("/analytics/source-health", dependencies=[Depends(verify_api_key)])
-def get_source_health(include_demo: int = Query(default=0, ge=0, le=1)):
+def get_source_health(
+    include_demo: int = Query(default=0, ge=0, le=1),
+    include_errors: int = Query(default=0, ge=0, le=1),
+):
     """Return source uptime/health metadata and fail streak status."""
     conn = get_connection()
     query = """SELECT id, name, url, source_type, active, credibility_score,
@@ -761,13 +764,16 @@ def get_source_health(include_demo: int = Query(default=0, ge=0, le=1)):
                       disabled_reason
         FROM sources
         WHERE 1=1"""
-    params = []
     if not include_demo:
         query += " AND COALESCE(source_type, '') != 'demo'"
     query += " ORDER BY fail_streak DESC, name ASC"
-    rows = conn.execute(query, params).fetchall()
+    rows = conn.execute(query).fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    payload = [dict(row) for row in rows]
+    if not include_errors:
+        for row in payload:
+            row["last_error"] = None
+    return payload
 
 
 @app.get("/analytics/source-presets", dependencies=[Depends(verify_api_key)])

@@ -1,12 +1,13 @@
 """Alert correlation threads for Subject-of-Interest timelines."""
 
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from analytics.utils import parse_timestamp, utcnow
 from database.init_db import get_connection
 
 _SHARED_ENTITY_TYPES = {"actor_handle", "domain", "ipv4", "url"}
+_MAX_PAIR_CHECKS_PER_GROUP = 25000
 
 
 class _UnionFind:
@@ -44,19 +45,39 @@ def _within_hours(left_dt, right_dt, max_hours):
     return diff_seconds <= float(max_hours) * 3600.0
 
 
-def _connect_pairs(uf, alerts_by_id, grouped_alert_ids, max_hours):
+def _connect_pairs(
+    uf,
+    alerts_by_id,
+    grouped_alert_ids,
+    max_hours,
+    max_pair_checks=_MAX_PAIR_CHECKS_PER_GROUP,
+):
+    max_seconds = float(max_hours) * 3600.0
+    safe_max_pair_checks = max(1, int(max_pair_checks))
     for alert_ids in grouped_alert_ids.values():
-        ids = list(alert_ids)
+        ids = [alert_id for alert_id in set(alert_ids) if alert_id in alerts_by_id]
         if len(ids) < 2:
             continue
+        ids.sort(key=lambda aid: alerts_by_id[aid]["timestamp_dt"] or datetime.max)
+        pair_checks = 0
         for idx in range(len(ids)):
             left_id = ids[idx]
             left_ts = alerts_by_id[left_id]["timestamp_dt"]
+            if left_ts is None:
+                continue
             for jdx in range(idx + 1, len(ids)):
                 right_id = ids[jdx]
                 right_ts = alerts_by_id[right_id]["timestamp_dt"]
-                if _within_hours(left_ts, right_ts, max_hours):
-                    uf.union(left_id, right_id)
+                if right_ts is None:
+                    continue
+                if (right_ts - left_ts).total_seconds() > max_seconds:
+                    break
+                pair_checks += 1
+                if pair_checks > safe_max_pair_checks:
+                    break
+                uf.union(left_id, right_id)
+            if pair_checks > safe_max_pair_checks:
+                break
 
 
 def build_soi_threads(

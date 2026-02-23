@@ -170,6 +170,8 @@ Generate an analyst-ready incident thread case pack:
 make casepack
 ```
 
+`make casepack` runs in an isolated temporary database so it does not modify your operational/local alert corpus.
+
 ## Environment-Gated Collection Modes
 
 Prototype and high-risk collectors are disabled by default.

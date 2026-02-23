@@ -8,7 +8,6 @@ from database.init_db import get_connection
 
 _TP_STATUSES = {"true_positive"}
 _FP_STATUSES = {"false_positive"}
-_CLASSIFIED_STATUSES = _TP_STATUSES | _FP_STATUSES
 
 
 def _precision(tp, fp):
@@ -29,17 +28,28 @@ def compute_signal_quality(window_days=30, include_demo=False):
 
     try:
         status_rows = conn.execute(
-            f"""SELECT d.status,
-                      d.created_at,
-                      s.id AS source_id,
-                      s.name AS source_name,
-                      k.category AS keyword_category
-            FROM dispositions d
-            JOIN alerts a ON a.id = d.alert_id
+            f"""WITH latest_dispositions AS (
+                SELECT d.alert_id,
+                       d.status,
+                       d.created_at,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY d.alert_id
+                           ORDER BY datetime(d.created_at) DESC, d.id DESC
+                       ) AS rn
+                FROM dispositions d
+            )
+            SELECT ld.status,
+                   ld.created_at,
+                   s.id AS source_id,
+                   s.name AS source_name,
+                   k.category AS keyword_category
+            FROM latest_dispositions ld
+            JOIN alerts a ON a.id = ld.alert_id
             LEFT JOIN sources s ON s.id = a.source_id
             LEFT JOIN keywords k ON k.id = a.keyword_id
-            WHERE datetime(d.created_at) >= datetime(?)
-              AND d.status IN ('true_positive', 'false_positive')
+            WHERE ld.rn = 1
+              AND datetime(ld.created_at) >= datetime(?)
+              AND ld.status IN ('true_positive', 'false_positive')
               {demo_filter}""",
             (cutoff,),
         ).fetchall()
