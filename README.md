@@ -164,6 +164,12 @@ Optional demo artifacts:
 make demo
 ```
 
+Generate an analyst-ready incident thread case pack:
+
+```bash
+make casepack
+```
+
 ## Environment-Gated Collection Modes
 
 Prototype and high-risk collectors are disabled by default.
@@ -206,6 +212,10 @@ Source reliability controls:
 ```bash
 curl "http://localhost:8000/analytics/soi-threads?days=14&window_hours=72&min_cluster_size=2"
 ```
+
+Generated case-pack artifact:
+
+- `docs/incident_thread_casepack.md`
 
 ## Security and Data Handling Disclosure
 
@@ -286,32 +296,6 @@ python -m pytest tests/ -v
 ```
 
 Current suite status: 75 passing tests.
-
-## Revised Priorities
-
-### P0 Communication and Documentation
-
-- Keep README architecture and quant logic aligned with implementation.
-- Publish one complete incident-thread case walkthrough.
-- Keep security/PII/data-retention disclosures explicit.
-
-### P1 Core Intelligence Logic
-
-- Correlation engine v2 with weighted confidence + reason codes.
-- Stronger cross-source actor linking for Telegram/chans/public feeds.
-- Source health heartbeat and reliability dashboard metrics.
-
-### P2 Data Science Rigor
-
-- Gold-standard labeled set for threat indicators.
-- Precision/recall/F1/P@K tracking by source/category over time.
-- Structured correlation decision logs for compliance/audit.
-
-### P3 Deployment and Scale
-
-- Hardened live mode gating and runbooks.
-- Scheduler/worker model for collection reliability.
-- Postgres + metrics stack migration path for production scale.
 
 ## Legal and Operational Note
 

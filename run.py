@@ -10,6 +10,7 @@ Usage:
     python run.py purge       Purge raw content older than retention window
     python run.py purge-demo  Remove demo-seeded content from database
     python run.py evaluate    Generate quantitative evaluation memo
+    python run.py casepack    Generate incident thread case pack markdown
     python run.py demo        Load fixtures and generate demo EP artifacts
     python run.py all         Start API + Dashboard (requires separate terminal for each)
 """
@@ -151,6 +152,9 @@ def main():
 
     elif command == "evaluate":
         subprocess.run([sys.executable, "scripts/generate_evaluation_memo.py"], check=True)
+
+    elif command == "casepack":
+        subprocess.run([sys.executable, "scripts/generate_incident_thread_casepack.py"], check=True)
 
     elif command == "demo":
         from analytics.demo_pack import run_demo_pack
