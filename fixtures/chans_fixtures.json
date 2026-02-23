@@ -1,0 +1,32 @@
+[
+  {
+    "author_handle": "anon_8a1f",
+    "title": "/pol/ thread discussing executive event disruption",
+    "content": "Block the venue doors before keynote. Keep pressure on executives and shut down the event.",
+    "url": "https://boards.4chan.org/pol/thread/demo-2001",
+    "published_at": "2026-02-22 08:20:00",
+    "matched_term": "blockade",
+    "category": "protest_disruption",
+    "keyword_weight": 2.6
+  },
+  {
+    "author_handle": "anon_b39c",
+    "title": "/b/ post with explicit threat language",
+    "content": "I have the schedule and route for the CEO stop downtown. Tomorrow will send a message.",
+    "url": "https://boards.4chan.org/b/thread/demo-2002",
+    "published_at": "2026-02-22 11:40:00",
+    "matched_term": "death threat",
+    "category": "protective_intel",
+    "keyword_weight": 5.0
+  },
+  {
+    "author_handle": "anon_d2e0",
+    "title": "Recon thread on access control weaknesses",
+    "content": "Entry checkpoints are light and cameras have blind spots near loading dock at headquarters.",
+    "url": "https://boards.4chan.org/pol/thread/demo-2003",
+    "published_at": "2026-02-22 13:55:00",
+    "matched_term": "hostile surveillance",
+    "category": "protective_intel",
+    "keyword_weight": 4.3
+  }
+]

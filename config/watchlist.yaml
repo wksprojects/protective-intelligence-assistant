@@ -113,6 +113,32 @@ sources:
   #   - name: "Example Onion Index"
   #     url: "http://exampleonionaddress.onion/search?q=threat"
 
+targeted_source_presets:
+  - name: "Event Local Reddit Watch"
+    scope: "event"
+    source_type: "reddit"
+    name_template: "Reddit Local — {city} ({event_name})"
+    url_template: "https://www.reddit.com/r/{city_slug}/.rss"
+    notes: "City-specific sentiment and disruption chatter for upcoming event footprint."
+    enabled: false
+
+  - name: "Event GDELT Threat/Disruption Watch"
+    scope: "event"
+    source_type: "rss"
+    name_template: "GDELT Event Watch — {event_name}"
+    gdelt_query_template: '("death threat" OR swatting OR protest OR blockade OR "civil unrest") AND ("{venue}" OR "{city}" OR "{poi_name}")'
+    credibility_score: 0.6
+    notes: "Contextual GDELT query around venue/city/principal for event windows."
+    enabled: false
+
+  - name: "Facility Local Reddit Watch"
+    scope: "location"
+    source_type: "reddit"
+    name_template: "Reddit Facility Watch — {location_name}"
+    url_template: "https://www.reddit.com/r/{location_slug}/.rss"
+    notes: "Location-specific monitoring around protected facilities/HQ."
+    enabled: false
+
 # -----------------------------------------------------------------------
 # Protectees (Magnificent 7 CEOs)
 # -----------------------------------------------------------------------

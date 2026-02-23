@@ -15,6 +15,7 @@ from scraper.rss_scraper import (
     match_keywords,
     parse_entry_published_at,
 )
+from scraper.source_health import mark_source_failure, mark_source_success
 
 
 def fetch_reddit_rss(url):
@@ -53,6 +54,10 @@ def run_reddit_scraper(frequency_snapshot=None):
     for source in sources:
         print(f"Scraping: {source['name']}")
         entries = fetch_reddit_rss(source["url"])
+        if not entries:
+            mark_source_failure(conn, source["id"], "sync Reddit RSS returned no entries")
+            continue
+        mark_source_success(conn, source["id"])
 
         for entry in entries:
             combined_text = f"{entry['title']} {entry['content']}"

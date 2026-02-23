@@ -1,0 +1,32 @@
+[
+  {
+    "author_handle": "city_grievance_watch",
+    "title": "Repeated grievance escalation toward executive",
+    "content": "Third warning this week. The CEO will be at town hall and everyone will see what happens. We know the route and schedule.",
+    "url": "https://t.me/city_grievance_watch/1001",
+    "published_at": "2026-02-22 09:10:00",
+    "matched_term": "death threat",
+    "category": "protective_intel",
+    "keyword_weight": 5.0
+  },
+  {
+    "author_handle": "hq_recon_group",
+    "title": "Recon chatter about HQ access points",
+    "content": "Security at the HQ side entrance is light after 7pm. Badge process is predictable. Could stage on the west side.",
+    "url": "https://t.me/hq_recon_group/1002",
+    "published_at": "2026-02-22 10:30:00",
+    "matched_term": "hostile surveillance",
+    "category": "protective_intel",
+    "keyword_weight": 4.3
+  },
+  {
+    "author_handle": "workplace_pressure_forum",
+    "title": "Insider grievance post with targeting language",
+    "content": "After termination I am done staying quiet. Leadership should pay and everyone at HQ should hear it in person.",
+    "url": "https://t.me/workplace_pressure_forum/1003",
+    "published_at": "2026-02-22 12:05:00",
+    "matched_term": "disgruntled",
+    "category": "insider_workplace",
+    "keyword_weight": 3.3
+  }
+]

@@ -17,6 +17,7 @@ from analytics.ep_pipeline import process_ep_signals
 from analytics.utils import utcnow
 from database.init_db import get_connection
 from scraper.acled_connector import run_acled_collector
+from scraper.chans_collector import run_chans_collector
 from scraper.darkweb_collector import run_darkweb_collector
 from scraper.pastebin_monitor import run_pastebin_scraper
 from scraper.reddit_scraper import run_reddit_scraper
@@ -29,6 +30,8 @@ from scraper.rss_scraper import (
     parse_entry_published_at,
     run_rss_scraper,
 )
+from scraper.source_health import mark_source_failure, mark_source_success
+from scraper.telegram_collector import run_telegram_collector
 
 try:
     import aiohttp
@@ -189,6 +192,7 @@ async def run_rss_scraper_async(frequency_snapshot=None):
     # Process each feed synchronously (SQLite writes)
     for source, raw_text in zip(sources, raw_responses):
         parsed_entries = []
+        failure_reason = "no feed entries returned"
         if raw_text:
             print(f"Processing: {source['name']}")
             feed = feedparser.parse(raw_text)
@@ -202,22 +206,29 @@ async def run_rss_scraper_async(frequency_snapshot=None):
                 for entry in feed.entries
             ]
             if not parsed_entries:
+                failure_reason = "async parse produced no entries"
                 print(
                     f"Async parse returned no entries for {source['name']}; "
                     "trying sync RSS fallback."
                 )
         if not parsed_entries:
             if not raw_text:
+                failure_reason = "async fetch failed"
                 print(f"Async fetch failed for {source['name']}; trying sync RSS fallback.")
             try:
                 parsed_entries = fetch_rss_feed(source["url"])
             except Exception as e:
+                failure_reason = f"sync fallback exception: {type(e).__name__}: {e}"
+                mark_source_failure(conn, source["id"], failure_reason)
                 print(f"Skipping {source['name']} (fallback failed): {e}")
                 continue
             if not parsed_entries:
+                failure_reason = "sync fallback returned no entries"
+                mark_source_failure(conn, source["id"], failure_reason)
                 print(f"Skipping {source['name']} (no entries from fallback)")
                 continue
 
+        mark_source_success(conn, source["id"])
         for entry in parsed_entries:
             title = entry.get("title", "")
             content = entry.get("content", "")
@@ -311,13 +322,20 @@ async def run_reddit_scraper_async(frequency_snapshot=None):
 
     for source, raw_text in zip(sources, raw_responses):
         if not raw_text:
+            mark_source_failure(conn, source["id"], "async fetch failed")
             print(f"Skipping {source['name']} (fetch failed)")
             continue
 
         print(f"Processing: {source['name']}")
         feed = feedparser.parse(raw_text)
+        entries = list(feed.entries or [])
+        if not entries:
+            mark_source_failure(conn, source["id"], "async parse produced no entries")
+            print(f"Skipping {source['name']} (no entries)")
+            continue
+        mark_source_success(conn, source["id"])
 
-        for entry in feed.entries:
+        for entry in entries:
             title = entry.get("title", "")
             content = entry.get("summary", "")
             url = entry.get("link", "")
@@ -394,8 +412,18 @@ async def run_all_scrapers_async():
     pastebin_count = run_pastebin_scraper(frequency_snapshot=frequency_snapshot)
     acled_count = run_acled_collector(frequency_snapshot=frequency_snapshot)
     darkweb_count = run_darkweb_collector(frequency_snapshot=frequency_snapshot)
+    telegram_count = run_telegram_collector(frequency_snapshot=frequency_snapshot)
+    chans_count = run_chans_collector(frequency_snapshot=frequency_snapshot)
 
-    total = rss_count + reddit_count + pastebin_count + acled_count + darkweb_count
+    total = (
+        rss_count
+        + reddit_count
+        + pastebin_count
+        + acled_count
+        + darkweb_count
+        + telegram_count
+        + chans_count
+    )
     return total
 
 
@@ -421,6 +449,8 @@ def run_all_scrapers():
             total += run_pastebin_scraper(frequency_snapshot=frequency_snapshot)
             total += run_acled_collector(frequency_snapshot=frequency_snapshot)
             total += run_darkweb_collector(frequency_snapshot=frequency_snapshot)
+            total += run_telegram_collector(frequency_snapshot=frequency_snapshot)
+            total += run_chans_collector(frequency_snapshot=frequency_snapshot)
     except Exception as e:
         print(f"Scraper error: {e}")
         status = "error"

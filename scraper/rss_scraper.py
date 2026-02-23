@@ -13,6 +13,7 @@ from analytics.risk_scoring import (
     score_alert,
 )
 from database.init_db import get_connection
+from scraper.source_health import mark_source_failure, mark_source_success
 
 
 def parse_entry_published_at(entry):
@@ -116,6 +117,10 @@ def run_rss_scraper(frequency_snapshot=None):
     for source in sources:
         print(f"Scraping: {source['name']}")
         entries = fetch_rss_feed(source["url"])
+        if not entries:
+            mark_source_failure(conn, source["id"], "sync RSS returned no entries")
+            continue
+        mark_source_success(conn, source["id"])
 
         for entry in entries:
             combined_text = f"{entry['title']} {entry['content']}"

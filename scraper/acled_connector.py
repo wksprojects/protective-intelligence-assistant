@@ -14,6 +14,7 @@ from analytics.ep_pipeline import process_ep_signals
 from analytics.risk_scoring import increment_keyword_frequency, score_alert
 from database.init_db import get_connection
 from scraper.rss_scraper import alert_exists, get_active_keywords
+from scraper.source_health import mark_source_failure, mark_source_skipped, mark_source_success
 
 ACLED_API = "https://api.acleddata.com/acled/read"
 
@@ -25,9 +26,21 @@ def _configured():
 def run_acled_collector(frequency_snapshot=None):
     if not _configured():
         print("ACLED collector skipped (ACLED_API_KEY/ACLED_EMAIL not configured).")
+        conn = get_connection()
+        try:
+            source = conn.execute(
+                "SELECT id FROM sources WHERE url = ?",
+                ("https://acleddata.com",),
+            ).fetchone()
+            if source:
+                mark_source_skipped(conn, source["id"], "ACLED credentials not configured")
+                conn.commit()
+        finally:
+            conn.close()
         return 0
 
     conn = get_connection()
+    source_id = None
     try:
         keywords = get_active_keywords(conn)
         source = conn.execute(
@@ -117,9 +130,14 @@ def run_acled_collector(frequency_snapshot=None):
             created += 1
 
         conn.commit()
+        mark_source_success(conn, source_id)
+        conn.commit()
         print(f"ACLED collector complete. {created} new alerts.")
         return created
     except Exception as exc:
+        if source_id is not None:
+            mark_source_failure(conn, source_id, f"ACLED collector error: {exc!r}")
+            conn.commit()
         print(f"ACLED collector failed: {exc}")
         return 0
     finally:

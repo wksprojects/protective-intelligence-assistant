@@ -11,6 +11,7 @@ from analytics.risk_scoring import (
 )
 from database.init_db import get_connection
 from scraper.rss_scraper import alert_exists, get_active_keywords, match_keywords
+from scraper.source_health import mark_source_failure, mark_source_success
 
 PASTEBIN_ARCHIVE_URL = "https://pastebin.com/archive"
 
@@ -81,79 +82,93 @@ def ensure_pastebin_source(conn):
 
 def run_pastebin_scraper(frequency_snapshot=None):
     conn = get_connection()
-    keywords = get_active_keywords(conn)
-    if frequency_snapshot is None:
-        frequency_snapshot = build_frequency_snapshot(
-            conn, keyword_ids=[keyword["id"] for keyword in keywords]
-        )
-    source_id = ensure_pastebin_source(conn)
-    new_alerts = 0
-    duplicates = 0
+    try:
+        keywords = get_active_keywords(conn)
+        if frequency_snapshot is None:
+            frequency_snapshot = build_frequency_snapshot(
+                conn, keyword_ids=[keyword["id"] for keyword in keywords]
+            )
+        source_id = ensure_pastebin_source(conn)
+        new_alerts = 0
+        duplicates = 0
 
-    print("Scraping: Pastebin Archive")
-    pastes = fetch_recent_pastes()
+        print("Scraping: Pastebin Archive")
+        pastes = fetch_recent_pastes()
+        if not pastes:
+            mark_source_failure(conn, source_id, "pastebin archive returned no pastes")
+            conn.commit()
+            print("Pastebin scrape complete. 0 new alerts, 0 duplicates skipped.")
+            return 0
 
-    for paste in pastes[:20]:  # limit to avoid rate limiting
-        content = fetch_paste_content(paste["url"])
-        if not content:
-            continue
+        for paste in pastes[:20]:  # limit to avoid rate limiting
+            content = fetch_paste_content(paste["url"])
+            if not content:
+                continue
 
-        combined_text = f"{paste['title']} {content}"
-        matches = match_keywords(combined_text, keywords)
+            combined_text = f"{paste['title']} {content}"
+            matches = match_keywords(combined_text, keywords)
 
-        for keyword in matches:
-            if not alert_exists(conn, source_id, keyword["id"], paste["url"]):
-                content_hash, duplicate_of = check_duplicate(conn, paste["title"], content)
-                conn.execute(
-                    """INSERT INTO alerts
-                       (source_id, keyword_id, title, content, url, matched_term,
-                        content_hash, duplicate_of, published_at, severity)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        source_id,
-                        keyword["id"],
-                        paste["title"],
-                        content[:2000],
-                        paste["url"],
-                        keyword["term"],
-                        content_hash,
-                        duplicate_of,
-                        None,
-                        "low",
-                    ),
-                )
-                alert_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-                if duplicate_of is None:
-                    score_args = frequency_snapshot.get(keyword["id"])
-                    baseline_score = score_alert(
-                        conn,
-                        alert_id,
-                        keyword["id"],
-                        source_id,
-                        frequency_override=score_args[0] if score_args else None,
-                        z_score_override=score_args[1] if score_args else None,
+            for keyword in matches:
+                if not alert_exists(conn, source_id, keyword["id"], paste["url"]):
+                    content_hash, duplicate_of = check_duplicate(conn, paste["title"], content)
+                    conn.execute(
+                        """INSERT INTO alerts
+                           (source_id, keyword_id, title, content, url, matched_term,
+                            content_hash, duplicate_of, published_at, severity)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            source_id,
+                            keyword["id"],
+                            paste["title"],
+                            content[:2000],
+                            paste["url"],
+                            keyword["term"],
+                            content_hash,
+                            duplicate_of,
+                            None,
+                            "low",
+                        ),
                     )
-                    extract_and_store_alert_entities(
-                        conn, alert_id, f"{paste['title']}\n{content}"
-                    )
-                    process_ep_signals(
-                        conn,
-                        alert_id=alert_id,
-                        title=paste["title"],
-                        content=content,
-                        keyword_category=keyword.get("category"),
-                        baseline_score=baseline_score,
-                    )
-                    increment_keyword_frequency(conn, keyword["id"])
-                    new_alerts += 1
-                else:
-                    duplicates += 1
+                    alert_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    conn.commit()
-    conn.close()
-    print(f"Pastebin scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped.")
-    return new_alerts
+                    if duplicate_of is None:
+                        score_args = frequency_snapshot.get(keyword["id"])
+                        baseline_score = score_alert(
+                            conn,
+                            alert_id,
+                            keyword["id"],
+                            source_id,
+                            frequency_override=score_args[0] if score_args else None,
+                            z_score_override=score_args[1] if score_args else None,
+                        )
+                        extract_and_store_alert_entities(
+                            conn, alert_id, f"{paste['title']}\n{content}"
+                        )
+                        process_ep_signals(
+                            conn,
+                            alert_id=alert_id,
+                            title=paste["title"],
+                            content=content,
+                            keyword_category=keyword.get("category"),
+                            baseline_score=baseline_score,
+                        )
+                        increment_keyword_frequency(conn, keyword["id"])
+                        new_alerts += 1
+                    else:
+                        duplicates += 1
+
+        mark_source_success(conn, source_id)
+        conn.commit()
+        print(f"Pastebin scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped.")
+        return new_alerts
+    except Exception as exc:
+        source_id = ensure_pastebin_source(conn)
+        mark_source_failure(conn, source_id, f"pastebin collector error: {exc!r}")
+        conn.commit()
+        print(f"Pastebin scrape failed: {exc}")
+        return 0
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

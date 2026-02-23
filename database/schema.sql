@@ -8,6 +8,12 @@ CREATE TABLE IF NOT EXISTS sources (
     false_positives INTEGER DEFAULT 0,
     bayesian_alpha REAL DEFAULT 2.0,
     bayesian_beta REAL DEFAULT 2.0,
+    fail_streak INTEGER DEFAULT 0,
+    last_status TEXT DEFAULT 'unknown',
+    last_error TEXT,
+    last_success_at TEXT,
+    last_failure_at TEXT,
+    disabled_reason TEXT,
     active INTEGER DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

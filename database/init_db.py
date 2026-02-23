@@ -17,6 +17,8 @@ SOURCE_DEFAULT_CREDIBILITY = {
     "reddit": 0.5,
     "pastebin": 0.2,
     "darkweb": 0.2,
+    "telegram": 0.35,
+    "chans": 0.2,
 }
 
 GDELT_DOC_API_BASE_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
@@ -262,6 +264,12 @@ def migrate_schema():
         "ALTER TABLE sources ADD COLUMN false_positives INTEGER DEFAULT 0",
         "ALTER TABLE sources ADD COLUMN bayesian_alpha REAL DEFAULT 2.0",
         "ALTER TABLE sources ADD COLUMN bayesian_beta REAL DEFAULT 2.0",
+        "ALTER TABLE sources ADD COLUMN fail_streak INTEGER DEFAULT 0",
+        "ALTER TABLE sources ADD COLUMN last_status TEXT DEFAULT 'unknown'",
+        "ALTER TABLE sources ADD COLUMN last_error TEXT",
+        "ALTER TABLE sources ADD COLUMN last_success_at TEXT",
+        "ALTER TABLE sources ADD COLUMN last_failure_at TEXT",
+        "ALTER TABLE sources ADD COLUMN disabled_reason TEXT",
         "ALTER TABLE alerts ADD COLUMN risk_score REAL DEFAULT 0.0",
         "ALTER TABLE alerts ADD COLUMN content_hash TEXT",
         "ALTER TABLE alerts ADD COLUMN duplicate_of INTEGER",
@@ -548,6 +556,8 @@ def migrate_schema():
 
     conn.execute("UPDATE keywords SET weight = 1.0 WHERE weight IS NULL")
     conn.execute("UPDATE sources SET credibility_score = 0.5 WHERE credibility_score IS NULL")
+    conn.execute("UPDATE sources SET fail_streak = 0 WHERE fail_streak IS NULL")
+    conn.execute("UPDATE sources SET last_status = 'unknown' WHERE last_status IS NULL")
     conn.execute("UPDATE alerts SET risk_score = 0.0 WHERE risk_score IS NULL")
     conn.execute("UPDATE alerts SET ors_score = risk_score WHERE ors_score IS NULL OR ors_score = 0.0")
     conn.execute("UPDATE alerts SET tas_score = 0.0 WHERE tas_score IS NULL")
@@ -589,6 +599,8 @@ def load_watchlist_yaml(config_path=None):
     Expected structure:
       sources:
         rss/reddit/pastebin/darkweb: [{name, url}]
+      targeted_source_presets:
+        [{name, scope, source_type, ...template fields...}]
       keywords:
         <category>: [term, ...] or [{term, weight}, ...]
     """
@@ -608,6 +620,7 @@ def load_watchlist_yaml(config_path=None):
     parsed = {
         "path": watchlist_path,
         "sources": [],
+        "targeted_source_presets": [],
         "keywords": [],
         "pois": [],
         "protected_locations": [],
@@ -617,7 +630,7 @@ def load_watchlist_yaml(config_path=None):
 
     source_block = payload.get("sources", {})
     if isinstance(source_block, dict):
-        for source_type in ("rss", "reddit", "pastebin", "darkweb"):
+        for source_type in ("rss", "reddit", "pastebin", "darkweb", "telegram", "chans"):
             entries = source_block.get(source_type, [])
             if not isinstance(entries, list):
                 continue
@@ -650,6 +663,36 @@ def load_watchlist_yaml(config_path=None):
                         "credibility_score": credibility,
                     }
                 )
+
+    presets = payload.get("targeted_source_presets", [])
+    if isinstance(presets, list):
+        for preset in presets:
+            if not isinstance(preset, dict):
+                continue
+            name = str(preset.get("name", "")).strip()
+            scope = str(preset.get("scope", "")).strip().lower()
+            source_type = str(preset.get("source_type", "")).strip().lower()
+            if not name or scope not in {"event", "location"} or not source_type:
+                continue
+            item = {
+                "name": name,
+                "scope": scope,
+                "source_type": source_type,
+                "name_template": str(preset.get("name_template", "")).strip() or None,
+                "url_template": str(preset.get("url_template", "")).strip() or None,
+                "gdelt_query_template": str(preset.get("gdelt_query_template", "")).strip() or None,
+                "notes": str(preset.get("notes", "")).strip() or None,
+                "enabled": str(preset.get("enabled", "false")).strip().lower()
+                in {"1", "true", "yes", "on"},
+            }
+            cred_raw = preset.get("credibility_score")
+            try:
+                item["credibility_score"] = (
+                    max(0.0, min(1.0, float(cred_raw))) if cred_raw is not None else None
+                )
+            except (TypeError, ValueError):
+                item["credibility_score"] = None
+            parsed["targeted_source_presets"].append(item)
 
     def _collect_keywords(keyword_block):
         collected = []

@@ -752,6 +752,38 @@ def get_performance_metrics(limit: int = Query(default=20, le=100)):
     return [dict(r) for r in runs]
 
 
+@app.get("/analytics/source-health", dependencies=[Depends(verify_api_key)])
+def get_source_health(include_demo: int = Query(default=0, ge=0, le=1)):
+    """Return source uptime/health metadata and fail streak status."""
+    conn = get_connection()
+    query = """SELECT id, name, url, source_type, active, credibility_score,
+                      fail_streak, last_status, last_error, last_success_at, last_failure_at,
+                      disabled_reason
+        FROM sources
+        WHERE 1=1"""
+    params = []
+    if not include_demo:
+        query += " AND COALESCE(source_type, '') != 'demo'"
+    query += " ORDER BY fail_streak DESC, name ASC"
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+@app.get("/analytics/source-presets", dependencies=[Depends(verify_api_key)])
+def get_source_presets(
+    horizon_days: int = Query(default=30, ge=1, le=120),
+    max_contexts_per_preset: int = Query(default=5, ge=1, le=20),
+):
+    """Preview targeted watchlist source presets for events/locations."""
+    from analytics.source_presets import preview_targeted_source_presets
+
+    return preview_targeted_source_presets(
+        horizon_days=horizon_days,
+        max_contexts_per_preset=max_contexts_per_preset,
+    )
+
+
 @app.get("/analytics/backtest", dependencies=[Depends(verify_api_key)])
 def run_backtest():
     """
@@ -785,6 +817,34 @@ def run_backtest():
         "full_mean_score": aggregate["full_mean_score"],
         "details": backtest,
     }
+
+
+@app.get("/analytics/soi-threads", dependencies=[Depends(verify_api_key)])
+def get_soi_threads(
+    days: int = Query(default=14, ge=1, le=90),
+    window_hours: int = Query(default=72, ge=1, le=720),
+    min_cluster_size: int = Query(default=2, ge=2, le=20),
+    limit: int = Query(default=50, ge=1, le=200),
+    include_demo: int = Query(default=0, ge=0, le=1),
+):
+    """Cluster related alerts into SOI timelines using shared actors/POIs/entities."""
+    from analytics.soi_threads import build_soi_threads
+
+    return build_soi_threads(
+        days=days,
+        window_hours=window_hours,
+        min_cluster_size=min_cluster_size,
+        limit=limit,
+        include_demo=bool(include_demo),
+    )
+
+
+@app.get("/analytics/signal-quality", dependencies=[Depends(verify_api_key)])
+def get_signal_quality(window_days: int = Query(default=30, ge=7, le=365)):
+    """Compute precision-oriented signal quality by source/category."""
+    from analytics.signal_quality import compute_signal_quality
+
+    return compute_signal_quality(window_days=window_days)
 
 
 @app.get("/analytics/ml-comparison", dependencies=[Depends(verify_api_key)])
@@ -1569,6 +1629,22 @@ def trigger_social_media_scrape():
 
     result = run_social_media_monitor()
     return result
+
+
+@app.post("/scrape/telegram", dependencies=[Depends(verify_api_key)])
+def trigger_telegram_scrape():
+    """Trigger Telegram prototype collector (fixture-first, env-gated)."""
+    from scraper.telegram_collector import run_telegram_collector
+
+    return {"ingested": run_telegram_collector(), "source": "telegram_prototype"}
+
+
+@app.post("/scrape/chans", dependencies=[Depends(verify_api_key)])
+def trigger_chans_scrape():
+    """Trigger chans prototype collector (fixture-first, env-gated)."""
+    from scraper.chans_collector import run_chans_collector
+
+    return {"ingested": run_chans_collector(), "source": "chans_prototype"}
 
 
 @app.get("/analytics/escalation-tiers", dependencies=[Depends(verify_api_key)])
