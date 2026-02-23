@@ -197,6 +197,12 @@ Generate a compact benchmark table for portfolio/interview use:
 make benchmark
 ```
 
+Generate an operational source-health heartbeat snapshot + append-only log:
+
+```bash
+make heartbeat
+```
+
 ## Environment-Gated Collection Modes
 
 Prototype and high-risk collectors are disabled by default.
@@ -306,6 +312,11 @@ Planned telemetry additions:
 
 - uptime rollups and SLO reporting
 
+Heartbeat artifacts:
+
+- `docs/source_health_heartbeat.md` (latest markdown snapshot)
+- `docs/source_health_heartbeat.jsonl` (append-only heartbeat log; local artifact)
+
 ## Deployment
 
 Containerized options are already included:
@@ -333,7 +344,7 @@ Incremental modularization is now in place:
 python -m pytest tests/ -v
 ```
 
-Current suite status: 81 passing tests.
+Current suite status: 83 passing tests.
 
 ## Legal and Operational Note
 

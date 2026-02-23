@@ -1,4 +1,4 @@
-.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark casepack clean help
+.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark heartbeat casepack clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -49,6 +49,9 @@ evaluate: ## Generate reproducible quantitative evaluation memo
 benchmark: ## Generate compact benchmark metrics table
 	python scripts/generate_benchmark_table.py
 
+heartbeat: ## Generate source health heartbeat snapshot + append-only log
+	python scripts/generate_source_health_heartbeat.py
+
 casepack: ## Generate incident thread analyst case pack
 	python scripts/generate_incident_thread_casepack.py
 
@@ -57,6 +60,8 @@ clean: ## Remove database and cached artifacts
 	rm -f database/osint_monitor.db
 	rm -f docs/evaluation_memo.md
 	rm -f docs/benchmark_table.md
+	rm -f docs/source_health_heartbeat.md
+	rm -f docs/source_health_heartbeat.jsonl
 	rm -f docs/incident_thread_casepack.md
 	rm -f docs/demo_daily_report.md docs/demo_travel_brief.md
 	rm -f docs/protectee_view.svg docs/map_view.svg

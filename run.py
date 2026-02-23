@@ -11,6 +11,7 @@ Usage:
     python run.py purge-demo  Remove demo-seeded content from database
     python run.py evaluate    Generate quantitative evaluation memo
     python run.py benchmark   Generate compact benchmark table markdown
+    python run.py heartbeat   Generate source health heartbeat artifacts
     python run.py casepack    Generate incident thread case pack markdown
     python run.py demo        Load fixtures and generate demo EP artifacts
     python run.py all         Start API + Dashboard (requires separate terminal for each)
@@ -156,6 +157,9 @@ def main():
 
     elif command == "benchmark":
         subprocess.run([sys.executable, "scripts/generate_benchmark_table.py"], check=True)
+
+    elif command == "heartbeat":
+        subprocess.run([sys.executable, "scripts/generate_source_health_heartbeat.py"], check=True)
 
     elif command == "casepack":
         subprocess.run([sys.executable, "scripts/generate_incident_thread_casepack.py"], check=True)
