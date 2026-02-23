@@ -16,6 +16,7 @@ SOURCE_DEFAULT_CREDIBILITY = {
     "rss": 0.8,
     "reddit": 0.5,
     "pastebin": 0.2,
+    "darkweb": 0.2,
 }
 
 GDELT_DOC_API_BASE_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
@@ -587,7 +588,7 @@ def load_watchlist_yaml(config_path=None):
 
     Expected structure:
       sources:
-        rss/reddit/pastebin: [{name, url}]
+        rss/reddit/pastebin/darkweb: [{name, url}]
       keywords:
         <category>: [term, ...] or [{term, weight}, ...]
     """
@@ -616,7 +617,7 @@ def load_watchlist_yaml(config_path=None):
 
     source_block = payload.get("sources", {})
     if isinstance(source_block, dict):
-        for source_type in ("rss", "reddit", "pastebin"):
+        for source_type in ("rss", "reddit", "pastebin", "darkweb"):
             entries = source_block.get(source_type, [])
             if not isinstance(entries, list):
                 continue

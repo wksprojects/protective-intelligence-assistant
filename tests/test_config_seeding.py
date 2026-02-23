@@ -111,6 +111,41 @@ def test_seed_default_keywords_prefers_yaml_and_upserts_by_term(tmp_path, monkey
     conn.close()
 
 
+def test_seed_default_sources_supports_darkweb_yaml_block(tmp_path, monkeypatch):
+    db_path = tmp_path / "darkweb_seed.db"
+    watchlist_path = tmp_path / "watchlist.yaml"
+
+    monkeypatch.setattr(db_init, "DB_PATH", str(db_path))
+    monkeypatch.setattr(db_init, "WATCHLIST_CONFIG_PATH", str(watchlist_path))
+
+    _write_watchlist(
+        watchlist_path,
+        """
+        sources:
+          darkweb:
+            - name: "Onion Index Alpha"
+              url: "http://exampleonionaddress.onion/search?q=stalking"
+        keywords: {}
+        """,
+    )
+
+    db_init.init_db()
+    db_init.migrate_schema()
+    db_init.seed_default_sources()
+
+    conn = db_init.get_connection()
+    row = conn.execute(
+        "SELECT name, url, source_type, credibility_score FROM sources ORDER BY id LIMIT 1"
+    ).fetchone()
+    conn.close()
+
+    assert row is not None
+    assert row["name"] == "Onion Index Alpha"
+    assert row["url"] == "http://exampleonionaddress.onion/search?q=stalking"
+    assert row["source_type"] == "darkweb"
+    assert row["credibility_score"] == db_init.SOURCE_DEFAULT_CREDIBILITY["darkweb"]
+
+
 def test_seed_default_keywords_respects_explicit_weight(tmp_path, monkeypatch):
     db_path = tmp_path / "keywords_weighted_seed.db"
     watchlist_path = tmp_path / "watchlist.yaml"

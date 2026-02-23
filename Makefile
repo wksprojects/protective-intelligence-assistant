@@ -25,7 +25,7 @@ demo: init ## Full demo: init → load fixtures → generate artifacts → print
 	@echo "    Terminal 2:  make dashboard  → http://localhost:8501"
 	@echo "══════════════════════════════════════════════════════════"
 
-scrape: init ## Run all scrapers (RSS/Reddit/Pastebin/ACLED)
+scrape: init ## Run all scrapers (RSS/Reddit/Pastebin/ACLED + optional darkweb scaffold)
 	python run.py scrape
 
 api: ## Start FastAPI server on :8000

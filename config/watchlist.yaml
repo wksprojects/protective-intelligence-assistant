@@ -102,6 +102,12 @@ sources:
     - name: "Pastebin Archive"
       url: "https://pastebin.com/archive"
 
+  # Optional roadmap source type. Collector remains disabled unless
+  # PI_ENABLE_DARKWEB_COLLECTOR=1 and an approved implementation is added.
+  # darkweb:
+  #   - name: "Example Onion Index"
+  #     url: "http://exampleonionaddress.onion/search?q=threat"
+
 # -----------------------------------------------------------------------
 # Protectees (Magnificent 7 CEOs)
 # -----------------------------------------------------------------------

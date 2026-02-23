@@ -37,6 +37,7 @@ flowchart LR
         Reddit[Reddit RSS]
         Paste[Pastebin Archive]
         ACLED[ACLED &#40;optional&#41;]
+        DarkWeb[Dark Web Connector &#40;scaffold, disabled&#41;]
     end
 
     subgraph Ingestion
@@ -64,7 +65,7 @@ flowchart LR
         UI[Streamlit<br/>Dashboard]
     end
 
-    RSS & GDELT & Reddit & Paste & ACLED --> Scraper
+    RSS & GDELT & Reddit & Paste & ACLED & DarkWeb --> Scraper
     Scraper --> Extract --> DB
     DB --> ORS & TAS & Pathway
     ORS & TAS & Pathway --> MC --> DB
@@ -162,6 +163,12 @@ Memo output: [`docs/evaluation_memo.md`](docs/evaluation_memo.md)
 5. **Resolve locations** (regex + optional geocoding with cache/rate limiting)
 6. **Compute** ORS (Operational Risk Score) + TAS (Threat Assessment Score)
 7. **Produce** EP intelligence products: daily report, travel briefs, SITREPs
+
+### Dark-Web Readiness (Scaffold)
+- `sources.darkweb` is now supported in `config/watchlist.yaml` for planned source registration.
+- Collector path is wired into `make scrape`, but disabled by default.
+- Enable flag: `PI_ENABLE_DARKWEB_COLLECTOR=1` (currently still returns no-op by design).
+- Current status: integration scaffold only, pending legal/ToS review, source QA, and hardened collector implementation.
 
 ### EP Intelligence Products
 - **Daily Report** — Automated intelligence summary with executive overview, top risks, emerging themes, escalation recommendations

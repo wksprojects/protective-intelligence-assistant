@@ -17,6 +17,7 @@ from analytics.ep_pipeline import process_ep_signals
 from analytics.utils import utcnow
 from database.init_db import get_connection
 from scraper.acled_connector import run_acled_collector
+from scraper.darkweb_collector import run_darkweb_collector
 from scraper.pastebin_monitor import run_pastebin_scraper
 from scraper.reddit_scraper import run_reddit_scraper
 from scraper.rss_scraper import (
@@ -342,8 +343,9 @@ async def run_all_scrapers_async():
     # Pastebin stays sync (individual paste fetches are rate-limited)
     pastebin_count = run_pastebin_scraper(frequency_snapshot=frequency_snapshot)
     acled_count = run_acled_collector(frequency_snapshot=frequency_snapshot)
+    darkweb_count = run_darkweb_collector(frequency_snapshot=frequency_snapshot)
 
-    total = rss_count + reddit_count + pastebin_count + acled_count
+    total = rss_count + reddit_count + pastebin_count + acled_count + darkweb_count
     return total
 
 
@@ -368,6 +370,7 @@ def run_all_scrapers():
             total += run_reddit_scraper(frequency_snapshot=frequency_snapshot)
             total += run_pastebin_scraper(frequency_snapshot=frequency_snapshot)
             total += run_acled_collector(frequency_snapshot=frequency_snapshot)
+            total += run_darkweb_collector(frequency_snapshot=frequency_snapshot)
     except Exception as e:
         print(f"Scraper error: {e}")
         status = "error"
