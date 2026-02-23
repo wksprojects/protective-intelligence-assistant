@@ -91,10 +91,17 @@ sources:
       credibility_score: 0.6
 
   reddit:
+    # Demo-safe starter feeds. For operational deployments, replace with
+    # mission-relevant communities (city/event/grievance) for higher signal.
+    # Meta communities like r/OSINT are useful for tooling updates, but low-yield
+    # for direct threat discovery.
     - name: "r/OSINT"
       url: "https://www.reddit.com/r/OSINT/.rss"
     - name: "r/security"
       url: "https://www.reddit.com/r/security/.rss"
+    # Example replacement pattern:
+    # - name: "r/<city_or_region>"
+    #   url: "https://www.reddit.com/r/<city_or_region>/.rss"
 
   pastebin:
     - name: "Pastebin Archive"

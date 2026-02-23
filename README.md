@@ -422,13 +422,26 @@ make smoke   # smoke test
 
 **Shipped by default:**
 - RSS (State Dept / CDC / GDELT PI-EP watch)
-- Reddit RSS (r/OSINT, r/security)
+- Reddit RSS starter feeds (r/OSINT, r/security)
 - Pastebin archive monitor
 - Optional ACLED connector (env-gated: `ACLED_API_KEY` + `ACLED_EMAIL`)
 
 **Stubs only (require legal compliance):**
 - Telegram/chans collectors (`scraper/connectors/*_stub.py`)
 - Social media platforms (X, Instagram, TikTok)
+
+## Source Realism (Roadmap)
+
+Default feeds are intentionally conservative for demo safety and reproducibility.
+Operational protective-intel signal is typically stronger on:
+- X (mentions/replies/quote-tweets around protectees, events, venues)
+- Telegram public channels (protest/disruption/grievance clusters)
+- Chans / fringe boards (high-noise but early leakage/fixation chatter)
+- Onion forums/indexes (doxxing/leak planning chatter)
+- Targeted Reddit communities (city/event/grievance), not just meta-OSINT feeds
+
+These surfaces are represented in this repo as policy-gated stubs/scaffolds
+pending legal/ToS review and source-quality hardening.
 
 ---
 
