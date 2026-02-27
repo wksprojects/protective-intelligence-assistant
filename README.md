@@ -69,11 +69,23 @@ Implemented now:
 
 ## Screenshots
 
+Dashboard views:
+
+| Situation Overview | Alert Triage |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![Triage](docs/screenshots/triage.png) |
+
+| Protectee Risk | Intelligence Analysis |
+|---|---|
+| ![Risk](docs/screenshots/protectee_risk.png) | ![Intelligence Analysis](docs/screenshots/intelligence_analysis.png) |
+
+API output snapshots (for reproducible endpoint evidence):
+
 | Insider Risk Queue | Supply-Chain Risk Queue |
 |---|---|
 | ![Insider Risk Endpoint](docs/screenshots/insider_risk_endpoint.png) | ![Supply Chain Risk Endpoint](docs/screenshots/supply_chain_risk_endpoint.png) |
 
-Cross-domain convergence snapshot:
+Cross-domain convergence output:
 
 ![Cross-Domain Convergence](docs/screenshots/cross_domain_convergence.png)
 
