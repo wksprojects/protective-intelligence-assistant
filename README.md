@@ -16,7 +16,7 @@ Quant hook: implements a multi-weighted scoring engine for cross-platform entity
 - Supply-chain fixture evaluation (n=6, threshold 45.0): **Precision 1.0000 / Recall 0.8000 / F1 0.8889** (`make supplychain-eval`).
 - Supply-chain scaffold coverage: **6 vendor profiles** across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
 - Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
-- Engineering verification: **99 automated tests passing** (`pytest -q`).
+- Engineering verification: **101 automated tests passing** (`pytest -q`).
 
 Note: insider/supply-chain metrics above are fixture benchmark scores, not claims of field production performance.
 
@@ -554,7 +554,7 @@ Incremental modularization is now in place:
 python -m pytest tests/ -v
 ```
 
-Current suite status: 99 passing tests.
+Current suite status: 101 passing tests.
 
 ## Legal and Operational Note
 

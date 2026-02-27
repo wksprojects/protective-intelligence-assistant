@@ -353,3 +353,27 @@ def test_ingest_supply_chain_profiles_endpoint(client):
     assert source is not None
     assert source["source_type"] == "supply_chain"
     assert source["last_status"] == "ok"
+
+
+def test_ingest_endpoints_reject_empty_payload_lists(client):
+    insider_response = client.post("/ingest/insider-events", json={"events": []})
+    assert insider_response.status_code == 422
+
+    supply_response = client.post("/ingest/supply-chain-profiles", json={"profiles": []})
+    assert supply_response.status_code == 422
+
+
+def test_ingest_endpoints_reject_oversized_payload_lists(client):
+    oversized_events = [{"subject_id": f"EMP-{idx}"} for idx in range(501)]
+    insider_response = client.post(
+        "/ingest/insider-events",
+        json={"events": oversized_events},
+    )
+    assert insider_response.status_code == 422
+
+    oversized_profiles = [{"name": f"Vendor {idx}"} for idx in range(501)]
+    supply_response = client.post(
+        "/ingest/supply-chain-profiles",
+        json={"profiles": oversized_profiles},
+    )
+    assert supply_response.status_code == 422

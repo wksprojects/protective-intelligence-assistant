@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from database.init_db import (
@@ -274,15 +274,15 @@ class DispositionRequest(BaseModel):
 
 
 class InsiderIngestRequest(BaseModel):
-    events: list[dict]
-    source_name: Optional[str] = None
-    source_url: Optional[str] = None
+    events: list[dict] = Field(min_length=1, max_length=500)
+    source_name: Optional[str] = Field(default=None, max_length=120)
+    source_url: Optional[str] = Field(default=None, max_length=255)
 
 
 class SupplyChainIngestRequest(BaseModel):
-    profiles: list[dict]
-    source_name: Optional[str] = None
-    source_url: Optional[str] = None
+    profiles: list[dict] = Field(min_length=1, max_length=500)
+    source_name: Optional[str] = Field(default=None, max_length=120)
+    source_url: Optional[str] = Field(default=None, max_length=255)
 
 
 class AlertResponse(BaseModel):
