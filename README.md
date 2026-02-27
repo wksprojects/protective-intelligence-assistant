@@ -1,19 +1,22 @@
-# Protective Intelligence Assistant
+# Protective Intelligence Assistant for cross-domain investigations
 
 [![CI](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
 
 Protective-intelligence decision support via cross-domain correlation across cyber, physical, and human-behavior signals.
 
-The platform ingests open-source signals, links related activity into incident threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
+Capability classes: Global Security Investigations / Protective Intelligence / Insider Risk / Third-Party Risk.
 
-Quant hook: implements a multi-weighted scoring engine for cross-platform entity resolution and incident threading.
+The platform ingests open-source signals, links related activity into investigation threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
+
+Quant hook: implements a multi-weighted scoring engine for cross-platform entity resolution and investigation threading.
 
 ## 90-Second Proof
 
-- Insider investigations: explainable IRS scoring over behavioral telemetry anomalies.
-- Third-party/vendor risk: weighted vendor risk scoring with clear reason codes.
-- Cross-domain correlation: unified SOI threads linking insider + external + vendor pivots in one PI workflow.
+- External threat monitoring (OSINT ingestion).
+- Insider risk analytics (fixture UEBA-style telemetry).
+- Third-party/vendor exposure scoring (env-gated scaffold).
+- Cross-domain investigation threading over insider + external + vendor pivots.
 
 Run one command:
 
@@ -23,19 +26,27 @@ make demo
 
 `make demo` outputs:
 
+- `docs/sample_casepack.md`
+- `out/sitrep.md`
 - `docs/demo_daily_report.md`
 - `docs/demo_travel_brief.md`
-- `docs/protectee_view.svg`
-- `docs/map_view.svg`
 
-Committed synthetic casepack (detection -> thread -> evidence -> disposition):
+Committed synthetic casepack (detection -> thread -> reason codes/evidence -> disposition -> controls):
 
-- `docs/synthetic_casepack.md`
+- `docs/sample_casepack.md`
+
+Neutral docs:
+
+- `docs/use_cases.md`
+- `docs/architecture.md`
+- `docs/evaluation.md`
 
 ## Scope Guardrails (PI-First)
 
 - Primary mission: protective-intelligence analysis for protectees, facilities, and travel risk.
 - Insider and vendor modules are supporting risk vectors that feed the same correlation and prioritization pipeline.
+- Fixture-driven telemetry simulation is used for high-sensitivity domains in this public repo.
+- Env-gated restricted-platform prototypes are opt-in and disabled by default.
 - This repo is not a full UEBA suite, TPRM platform, or SOC replacement.
 
 ## Headline Metrics (Latest Local Run - February 27, 2026)
@@ -144,7 +155,7 @@ flowchart LR
 
     subgraph Analyst Outputs
         Alerts["Prioritized Alerts"]
-        Threads["Incident Threads"]
+        Threads["Investigation Threads"]
         Daily["Daily Intel Report"]
         Travel["Travel Brief"]
         SITREP["SITREP"]
@@ -190,7 +201,7 @@ flowchart LR
     B --> D["Vector Index (planned)"]
     C --> E["Correlation Engine"]
     D --> E
-    E --> F["Incident Threads + Confidence"]
+    E --> F["Investigation Threads + Confidence"]
     F --> G["Analyst Alert Queue + Reporting"]
 ```
 
@@ -234,7 +245,14 @@ Output fields include:
 - `pair_evidence`
 - analyst timeline by source/type/time
 
-### 3) Signal Taxonomy
+### 3) Evidence Model
+
+- **Reason codes:** deterministic explanations for why alerts were linked/scored.
+- **Pair evidence:** edge-level linkage details between alerts with supporting scores.
+- **Provenance keys:** shared entities (`user_id`, `device_id`, `vendor_id`, network artifacts) carried through casepack output.
+- **Audit log:** mutation paths recorded in `audit_log` for disposition/change accountability.
+
+### 4) Signal Taxonomy
 
 The system collects and scores signals as indicator classes, not only keyword hits.
 
@@ -284,7 +302,7 @@ Optional demo artifacts:
 make demo
 ```
 
-Generate an analyst-ready incident thread case pack:
+Generate an analyst-ready investigation thread case pack:
 
 ```bash
 make casepack
@@ -378,7 +396,7 @@ Source reliability controls:
 - `POST /briefs/travel`
 - `POST /sitreps/generate/poi/{id}`
 
-## Example: Pull Incident Threads
+## Example: Pull Investigation Threads
 
 ```bash
 curl "http://localhost:8000/analytics/soi-threads?days=14&window_hours=72&min_cluster_size=2"

@@ -12,13 +12,14 @@ sync: ## Sync watchlist config into existing database
 
 demo: init ## Full demo: init → load fixtures → generate artifacts → print URLs
 	python run.py demo
+	python scripts/generate_demo_proof_artifacts.py
 	@echo ""
 	@echo "══════════════════════════════════════════════════════════"
 	@echo "  Demo artifacts generated:"
+	@echo "    docs/sample_casepack.md"
+	@echo "    out/sitrep.md"
 	@echo "    docs/demo_daily_report.md"
 	@echo "    docs/demo_travel_brief.md"
-	@echo "    docs/protectee_view.svg"
-	@echo "    docs/map_view.svg"
 	@echo ""
 	@echo "  Start the stack:"
 	@echo "    Terminal 1:  make api        → http://localhost:8000"
@@ -82,6 +83,8 @@ clean: ## Remove database and cached artifacts
 	rm -f docs/source_health_heartbeat.md
 	rm -f docs/source_health_heartbeat.jsonl
 	rm -f docs/incident_thread_casepack.md
+	rm -f docs/sample_casepack.md
 	rm -f docs/demo_daily_report.md docs/demo_travel_brief.md
 	rm -f docs/protectee_view.svg docs/map_view.svg
+	rm -f out/sitrep.md
 	@echo "Cleaned database and demo artifacts."

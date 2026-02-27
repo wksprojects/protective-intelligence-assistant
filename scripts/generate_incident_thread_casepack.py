@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate an analyst-ready incident thread case pack.
+Generate an analyst-ready investigation thread case pack.
 
 Output:
     docs/incident_thread_casepack.md
@@ -297,7 +297,7 @@ def _build_thread_context(thread):
 def _render_no_thread_casepack(counts):
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     lines = [
-        "# Incident Thread Case Pack",
+        "# Investigation Thread Case Pack",
         "",
         f"Generated: {generated_at}",
         "",
@@ -352,7 +352,7 @@ def _render_casepack(thread, counts):
     }[tier]
 
     lines = [
-        "# Incident Thread Case Pack",
+        "# Investigation Thread Case Pack",
         "",
         f"Generated: {generated_at}",
         "",
