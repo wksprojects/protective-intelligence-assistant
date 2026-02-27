@@ -126,6 +126,27 @@ def fetch_poi_hits(poi_id, days=14):
 def fetch_subject_detail(subject_id):
     return _get(f"/threat-subjects/{subject_id}")
 
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_insider_risk(min_score=0.0, limit=50):
+    return _get("/analytics/insider-risk", params={"min_score": min_score, "limit": limit})
+
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_supply_chain_risk(min_score=0.0, limit=50):
+    return _get("/analytics/supply-chain-risk", params={"min_score": min_score, "limit": limit})
+
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_investigation_threads(days=14, window_hours=72, min_cluster_size=2, limit=25):
+    return _get(
+        "/analytics/soi-threads",
+        params={
+            "days": days,
+            "window_hours": window_hours,
+            "min_cluster_size": min_cluster_size,
+            "limit": limit,
+            "include_demo": 0,
+        },
+    )
+
 
 # ---------------------------------------------------------------------------
 # Plotly dark template
@@ -738,7 +759,7 @@ with tabs[2]:
                 poi_id = sel_poi["id"]
                 aliases = [a["alias"] for a in sel_poi.get("aliases", [])]
 
-                st.markdown(f"---")
+                st.markdown("---")
                 st.markdown(
                     f'##### {_esc(sel_poi["name"])} '
                     f'<span style="color:{UI_TEXT_SECONDARY};font-size:0.85rem;">| {_esc(sel_poi.get("org", ""))} | {_esc(sel_poi.get("role", ""))}</span>',
@@ -945,6 +966,112 @@ with tabs[2]:
 # ============================================================
 with tabs[3]:
     st.markdown("##### Intelligence Analysis")
+
+    # Cross-domain investigations visibility
+    st.markdown("**Investigation Queues (Insider + Third-Party + Threading)**")
+    q1, q2, q3, q4 = st.columns([1.2, 1.2, 1.2, 1])
+    irs_min = q1.slider("Min IRS", 0.0, 100.0, 55.0, 5.0, key="inv_irs_min")
+    vendor_min = q2.slider("Min Vendor Score", 0.0, 100.0, 45.0, 5.0, key="inv_vendor_min")
+    thread_days = q3.selectbox("Thread Window (days)", [7, 14, 30], index=1, key="inv_days")
+    if q4.button("Refresh Investigation Queues", key="inv_refresh"):
+        st.cache_data.clear()
+        st.rerun()
+
+    try:
+        insider_rows = fetch_insider_risk(min_score=irs_min, limit=30)
+    except requests.RequestException:
+        insider_rows = []
+    try:
+        vendor_rows = fetch_supply_chain_risk(min_score=vendor_min, limit=30)
+    except requests.RequestException:
+        vendor_rows = []
+    try:
+        threads = fetch_investigation_threads(days=thread_days, window_hours=72, min_cluster_size=2, limit=20)
+    except requests.RequestException:
+        threads = []
+
+    km1, km2, km3 = st.columns(3)
+    km1.metric("Insider Subjects", len(insider_rows))
+    km2.metric("Third-Party Profiles", len(vendor_rows))
+    km3.metric("Investigation Threads", len(threads))
+
+    t1, t2 = st.columns(2)
+    with t1:
+        st.markdown("**Insider Risk Queue (IRS)**")
+        if insider_rows:
+            insider_view = []
+            for row in insider_rows[:10]:
+                insider_view.append(
+                    {
+                        "Subject": row.get("subject_id"),
+                        "IRS": round(float(row.get("irs_score") or 0.0), 1),
+                        "Tier": row.get("risk_tier"),
+                        "Reason Codes": ", ".join((row.get("reason_codes") or [])[:3]),
+                    }
+                )
+            st.dataframe(pd.DataFrame(insider_view), use_container_width=True, hide_index=True)
+        else:
+            _empty("No insider queue entries above current threshold.")
+
+    with t2:
+        st.markdown("**Third-Party Risk Queue**")
+        if vendor_rows:
+            vendor_view = []
+            for row in vendor_rows[:10]:
+                vendor_view.append(
+                    {
+                        "Vendor": row.get("vendor_name"),
+                        "Profile": row.get("profile_id"),
+                        "Score": round(float(row.get("vendor_risk_score") or 0.0), 1),
+                        "Tier": row.get("risk_tier"),
+                        "Reason Codes": ", ".join((row.get("reason_codes") or [])[:3]),
+                    }
+                )
+            st.dataframe(pd.DataFrame(vendor_view), use_container_width=True, hide_index=True)
+        else:
+            _empty("No third-party queue entries above current threshold.")
+
+    st.markdown("**Investigation Threads**")
+    if threads:
+        thread_rows = []
+        for thread in threads[:10]:
+            thread_rows.append(
+                {
+                    "Thread ID": thread.get("thread_id"),
+                    "Sources": ", ".join(thread.get("source_types") or []),
+                    "Alerts": thread.get("alerts_count"),
+                    "Confidence": round(float(thread.get("thread_confidence") or 0.0), 3),
+                    "Reason Codes": ", ".join((thread.get("reason_codes") or [])[:4]),
+                }
+            )
+        st.dataframe(pd.DataFrame(thread_rows), use_container_width=True, hide_index=True)
+
+        top_thread = threads[0]
+        with st.expander("Top Thread Evidence"):
+            st.caption(
+                f"thread={top_thread.get('thread_id')} | "
+                f"sources={', '.join(top_thread.get('source_types') or [])} | "
+                f"confidence={round(float(top_thread.get('thread_confidence') or 0.0), 3)}"
+            )
+            pair_evidence = top_thread.get("pair_evidence") or []
+            if pair_evidence:
+                ev_rows = []
+                for edge in pair_evidence[:6]:
+                    ev_rows.append(
+                        {
+                            "Left Alert": edge.get("left_alert_id"),
+                            "Right Alert": edge.get("right_alert_id"),
+                            "Score": round(float(edge.get("score") or 0.0), 3),
+                            "Reason Codes": ", ".join(edge.get("reason_codes") or []),
+                        }
+                    )
+                st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
+            else:
+                _empty("No pair evidence attached to current top thread.")
+    else:
+        _empty("No investigation threads available yet. Run `make demo` or `make scrape`.", "\U0001F9F5")
+
+    st.markdown("---")
 
     # Keyword Spikes + Forecast
     col_spike, col_forecast = st.columns(2)

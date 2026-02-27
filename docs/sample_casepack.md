@@ -4,24 +4,25 @@ Generated: synthetic fixture workflow (`make demo`)
 
 ## Detection
 
-- Insider anomaly detected for `EMP-7415` (off-hours access + data movement + communication metadata shift).
-- Third-party risk pivot detected for `sc-004` (`Aster Cloud Analytics`) with elevated vendor risk factors.
-- External corroboration present through synthetic OSINT bridge event tied to `user_id:emp-7415`.
+- Insider anomaly queue hit for `EMP-1042` with elevated IRS indicators.
+- Third-party risk pivot detected for `sc-001` (`Northbridge Identity Operations`).
+- Correlation engine identified cross-source linkage candidates in the current dataset.
 
 ## Correlated Thread
 
-- `thread_id`: `soi-e5551e4f98fe`
-- source types: `insider`, `rss`, `supply_chain`
-- convergence pivots: `user_id`, `vendor_id`, `domain`
+- `thread_id`: `soi-9425b227fe7a`
+- source types: `insider, supply_chain`
+- convergence pivots: device_id:lptp-553, device_id:lptp-812, device_id:lptp-991, domain:aster-cloud.example
 
 ## Reason Codes and Evidence
 
-- reason codes: `shared_user_id`, `shared_vendor_id`, `cross_source`, `tight_temporal`
+- reason codes: `cross_source`, `linguistic_overlap_high`, `linguistic_overlap_medium`, `matched_term_temporal`, `shared_source_fingerprint`, `shared_vendor_id`
 - evidence:
-  - `user_id:emp-7415`
-  - `vendor_id:sc-004`
+  - `device_id:lptp-553`
+  - `device_id:lptp-812`
+  - `device_id:lptp-991`
   - `domain:aster-cloud.example`
-  - pair evidence includes insider<->external and insider<->vendor links
+  - pair evidence captured in investigation thread output (`pair_evidence`)
 
 ## Disposition
 

@@ -24,10 +24,13 @@ Run one command:
 make demo
 ```
 
+(`make demo` runs fixture scraping + scoring + investigation artifact generation.)
+
 `make demo` outputs:
 
 - `docs/sample_casepack.md`
 - `out/sitrep.md`
+- `docs/incident_thread_casepack.md`
 - `docs/demo_daily_report.md`
 - `docs/demo_travel_brief.md`
 
@@ -92,6 +95,7 @@ Implemented now:
 - Insider telemetry collector + IRS analytics endpoint.
 - Environment-gated supply-chain collector scaffold + vendor risk endpoint.
 - API ingest endpoints for insider telemetry and supply-chain profiles (`POST /ingest/insider-events`, `POST /ingest/supply-chain-profiles`).
+- Dashboard investigation panels for insider queue, third-party queue, and investigation thread evidence.
 - Dark-web collector scaffold wired into pipeline, disabled by default.
 - SOI thread correlation endpoint.
 - Targeted source preset preview endpoint for event/location watchlist expansion.
@@ -277,11 +281,12 @@ make clean && make init && make scrape
 ```bash
 pip install -r requirements.txt
 make demo
-make casepack
 ```
 
 Expected artifacts:
 
+- `docs/sample_casepack.md`
+- `out/sitrep.md`
 - `docs/demo_daily_report.md`
 - `docs/demo_travel_brief.md`
 - `docs/incident_thread_casepack.md`

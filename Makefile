@@ -11,13 +11,16 @@ sync: ## Sync watchlist config into existing database
 	python run.py sync
 
 demo: init ## Full demo: init → load fixtures → generate artifacts → print URLs
+	PI_ENABLE_TELEGRAM_COLLECTOR=1 PI_ENABLE_CHANS_COLLECTOR=1 PI_ENABLE_SUPPLY_CHAIN=1 python run.py scrape
 	python run.py demo
+	python run.py casepack
 	python scripts/generate_demo_proof_artifacts.py
 	@echo ""
 	@echo "══════════════════════════════════════════════════════════"
 	@echo "  Demo artifacts generated:"
 	@echo "    docs/sample_casepack.md"
 	@echo "    out/sitrep.md"
+	@echo "    docs/incident_thread_casepack.md"
 	@echo "    docs/demo_daily_report.md"
 	@echo "    docs/demo_travel_brief.md"
 	@echo ""

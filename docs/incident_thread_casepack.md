@@ -1,6 +1,6 @@
-# Incident Thread Case Pack
+# Investigation Thread Case Pack
 
-Generated: 2026-02-27 21:07:10 UTC
+Generated: 2026-02-27 22:22:38 UTC
 
 ## Scope and Sanitization
 - Synthetic fixture data only (no production identities, no classified/regulated datasets).
@@ -19,7 +19,7 @@ Generated: 2026-02-27 21:07:10 UTC
 - alerts: **10**
 - sources: **3** (External OSINT Bridge (Fixture), Insider Telemetry (Fixture UEBA), Supply Chain Risk (Fixture Scaffold))
 - source types: **insider, rss, supply_chain**
-- time window: **2026-02-25 23:58:00 → 2026-02-27 21:07:10**
+- time window: **2026-02-25 23:58:00 → 2026-02-27 22:22:38**
 - max ORS: **99.4**
 - max TAS: **0.0**
 - thread confidence: **0.89**
@@ -59,13 +59,13 @@ Generated: 2026-02-27 21:07:10 UTC
 | 2026-02-25 23:58:00 | Insider Telemetry (Fixture UEBA) | insider | 60.2 | 0.0 | insider telemetry anomaly | Attempted privilege escalation and HR stressor convergence |
 | 2026-02-26 00:47:00 | Insider Telemetry (Fixture UEBA) | insider | 57.3 | 0.0 | insider telemetry anomaly | Late-night recon on restricted engineering docs |
 | 2026-02-26 03:36:00 | Insider Telemetry (Fixture UEBA) | insider | 68.5 | 0.0 | insider telemetry anomaly | Sustained high-volume extraction with external contact expansion |
-| 2026-02-27 21:07:10 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 99.4 | 0.0 | third party vendor risk | Vendor risk assessment: Northbridge Identity Operations |
-| 2026-02-27 21:07:10 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 19.3 | 0.0 | third party vendor risk | Vendor risk assessment: Harborview Facilities Services |
-| 2026-02-27 21:07:10 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 47.5 | 0.0 | third party vendor risk | Vendor risk assessment: Blue Meridian Travel Partners |
-| 2026-02-27 21:07:10 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 83.3 | 0.0 | third party vendor risk | Vendor risk assessment: Aster Cloud Analytics |
-| 2026-02-27 21:07:10 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 70.8 | 0.0 | third party vendor risk | Vendor risk assessment: Summit Badge Integrations |
-| 2026-02-27 21:07:10 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 40.5 | 0.0 | third party vendor risk | Vendor risk assessment: Praxis Payroll Outsourcing |
-| 2026-02-27 21:07:10 | External OSINT Bridge (Fixture) | rss | 78.0 | 0.0 | death threat | External forum signal references insider-linked identifier and vendor |
+| 2026-02-27 22:22:38 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 99.4 | 0.0 | third party vendor risk | Vendor risk assessment: Northbridge Identity Operations |
+| 2026-02-27 22:22:38 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 19.3 | 0.0 | third party vendor risk | Vendor risk assessment: Harborview Facilities Services |
+| 2026-02-27 22:22:38 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 47.5 | 0.0 | third party vendor risk | Vendor risk assessment: Blue Meridian Travel Partners |
+| 2026-02-27 22:22:38 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 83.3 | 0.0 | third party vendor risk | Vendor risk assessment: Aster Cloud Analytics |
+| 2026-02-27 22:22:38 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 70.8 | 0.0 | third party vendor risk | Vendor risk assessment: Summit Badge Integrations |
+| 2026-02-27 22:22:38 | Supply Chain Risk (Fixture Scaffold) | supply_chain | 40.5 | 0.0 | third party vendor risk | Vendor risk assessment: Praxis Payroll Outsourcing |
+| 2026-02-27 22:22:38 | External OSINT Bridge (Fixture) | rss | 78.0 | 0.0 | death threat | External forum signal references insider-linked identifier and vendor |
 
 ## Pairwise Link Provenance
 | Left Alert | Right Alert | Score | Reason Codes |
