@@ -3,7 +3,7 @@
 [![CI](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
 
-Automated protective-intelligence analysis via cross-domain correlation across cyber, physical, and human-behavior signals.
+Protective-intelligence decision support via cross-domain correlation across cyber, physical, and human-behavior signals.
 
 The platform ingests open-source signals, links related activity into incident threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
 
@@ -13,7 +13,7 @@ Quant hook: implements a multi-weighted scoring engine for cross-platform entity
 
 - Insider investigations: explainable IRS scoring over behavioral telemetry anomalies.
 - Third-party/vendor risk: weighted vendor risk scoring with clear reason codes.
-- Cross-domain correlation: unified SOI threads linking insider + external + vendor pivots.
+- Cross-domain correlation: unified SOI threads linking insider + external + vendor pivots in one PI workflow.
 
 Run one command:
 
@@ -32,6 +32,12 @@ Committed synthetic casepack (detection -> thread -> evidence -> disposition):
 
 - `docs/synthetic_casepack.md`
 
+## Scope Guardrails (PI-First)
+
+- Primary mission: protective-intelligence analysis for protectees, facilities, and travel risk.
+- Insider and vendor modules are supporting risk vectors that feed the same correlation and prioritization pipeline.
+- This repo is not a full UEBA suite, TPRM platform, or SOC replacement.
+
 ## Headline Metrics (Latest Local Run - February 27, 2026)
 
 - Correlation linkage quality on hand-labeled scenarios: **Precision 0.8750 / Recall 0.8750 / F1 0.8750** (`make correlation-eval`).
@@ -45,6 +51,8 @@ Note: insider/supply-chain metrics above are fixture benchmark scores, not claim
 
 ## What This Project Demonstrates
 
+All capabilities below are implemented as one protective-intelligence pipeline, not separate standalone products.
+
 ### Capability Map (90-second scan)
 
 | Capability | Evidence in Repo |
@@ -55,24 +63,14 @@ Note: insider/supply-chain metrics above are fixture benchmark scores, not claim
 | Detection to analyst action | Correlated threads + scored outputs + casepack + SITREP endpoints |
 | Operational rigor and defensibility | source-health telemetry, audit log, explainable reason codes, reproducible eval artifacts |
 
-### Engineering Signals
+### Operational Mapping (Keyword Scan)
 
-- Quantitative triage with explainable scoring (ORS, TAS, IRS, uncertainty intervals).
-- Correlation logic that reduces analyst noise by clustering related signals into SOI threads.
-- Environment-gated and policy-aware collection posture with fixture-first modules for sensitive domains.
-
-### Real-World Ops Mapping
-
-| Enterprise Function | Repo Mapping (Current) | Integration Seam (Next Step) |
-|---|---|---|
-| EDR telemetry triage | Insider telemetry collector normalizes endpoint/user behavior into explainable IRS factors and reason codes, including API ingest payloads. | Add source-side event signing and immutable collector run IDs for stronger provenance. |
-| DLP/exfil monitoring | Data movement signals (`download_gb`, USB writes, cloud upload volume) are scored as exfiltration indicators via fixture or ingest API paths. | Map enterprise DLP event IDs into `scenario_id` lineage and carry them through casepack exports. |
-| UEBA risk accumulation | Multi-signal compounding + cumulative acceleration model in `analytics/insider_risk.py`. | Persist rolling baselines by subject/device from production identity/behavior streams. |
-| SIEM correlation | SOI threader links cross-domain entities (`user_id`, `device_id`, `vendor_id`, `domain`, `ipv4`, `url`) with pairwise evidence. | Ingest SIEM alert IDs as entity/provenance fields for pivoting and back-reference. |
-| SOAR-ready outputs | API endpoints expose scored queues with reason codes (`/analytics/insider-risk`, `/analytics/supply-chain-risk`, `/analytics/soi-threads`). | Add webhook/queue publisher that emits high-tier events to orchestration playbooks. |
-| Evidence handling workflow | Casepack artifact captures provenance keys, pairwise linkage evidence, source timeline, and risk context. | Add signed evidence manifest (hash + source timestamp + collector run ID) for chain-of-custody reporting. |
-
-Compact workflow (implemented): detect -> score -> correlate -> produce casepack/SITREP-ready context -> analyst disposition.
+- **EDR / UEBA:** insider telemetry normalization + IRS reason-coded scoring.
+- **DLP / Exfil:** data movement anomaly factors (`download_gb`, USB, cloud upload).
+- **SIEM / Correlation:** SOI threading over `user_id`, `device_id`, `vendor_id`, `domain`, `ipv4`, `url`.
+- **SOAR-ready outputs:** scored queues from `/analytics/insider-risk`, `/analytics/supply-chain-risk`, `/analytics/soi-threads`.
+- **Evidence handling:** casepack provenance keys + pairwise linkage evidence + timeline.
+- **Analyst workflow:** detect -> score -> correlate -> disposition.
 
 ## Current Status
 
