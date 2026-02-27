@@ -402,5 +402,12 @@ def collect_supply_chain():
         )
         return int(stats["ingested"])
     except Exception as exc:
+        conn = get_connection()
+        try:
+            source_id = _ensure_source(conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures")
+            mark_source_failure(conn, source_id, f"supply-chain collector failed: {exc!r}")
+            conn.commit()
+        finally:
+            conn.close()
         print(f"Supply-chain collector failed: {exc}")
         return 0

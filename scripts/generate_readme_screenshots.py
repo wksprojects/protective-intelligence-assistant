@@ -218,7 +218,7 @@ def _build_payloads():
         "pair_evidence": (thread_row.get("pair_evidence") or [])[:2],
     }
     queue_payload = {
-        "dashboard_panel": "Intelligence Analysis > Investigation Queues",
+        "snapshot": "Investigation Queues payload",
         "insider_queue": [
             {
                 "subject_id": row.get("subject_id"),
@@ -314,8 +314,8 @@ def main():
         )
         _render_json_snapshot(
             QUEUE_IMG,
-            "Dashboard Investigation Queues",
-            "Insider, third-party, and investigation thread panels in one view.",
+            "Investigation Queues Payload Snapshot",
+            "Insider, third-party, and investigation thread queue data.",
             queue_payload,
         )
     finally:

@@ -91,6 +91,43 @@ def test_supply_chain_scrape_and_analytics_endpoint(client, monkeypatch):
     assert source["last_status"] == "ok"
 
 
+def test_insider_scrape_returns_503_on_collector_error(client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("synthetic insider failure")
+
+    monkeypatch.setattr("collectors.insider_telemetry.ingest_insider_events", _boom)
+    response = client.post("/scrape/insider")
+    assert response.status_code == 503
+    assert "insider_telemetry collector error" in response.json()["detail"]
+
+    conn = get_connection()
+    source = conn.execute(
+        "SELECT last_status FROM sources WHERE source_type = 'insider' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert source is not None
+    assert source["last_status"] == "error"
+
+
+def test_supply_chain_scrape_returns_503_on_collector_error(client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("synthetic supply-chain failure")
+
+    monkeypatch.setenv("PI_ENABLE_SUPPLY_CHAIN", "1")
+    monkeypatch.setattr("collectors.supply_chain.ingest_supply_chain_profiles", _boom)
+    response = client.post("/scrape/supply-chain")
+    assert response.status_code == 503
+    assert "supply_chain_scaffold collector error" in response.json()["detail"]
+
+    conn = get_connection()
+    source = conn.execute(
+        "SELECT last_status FROM sources WHERE source_type = 'supply_chain' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    assert source is not None
+    assert source["last_status"] == "error"
+
+
 def test_insider_threads_converge_with_external_signal(client):
     insider_ingest = client.post("/scrape/insider")
     assert insider_ingest.status_code == 200

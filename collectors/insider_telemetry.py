@@ -595,5 +595,12 @@ def collect_insider_telemetry():
         )
         return int(stats["ingested"])
     except Exception as exc:
+        conn = get_connection()
+        try:
+            source_id = _ensure_source(conn, source_name=SOURCE_NAME, source_url="insider://fixtures")
+            mark_source_failure(conn, source_id, f"insider collector failed: {exc!r}")
+            conn.commit()
+        finally:
+            conn.close()
         print(f"Insider telemetry collector failed: {exc}")
         return 0

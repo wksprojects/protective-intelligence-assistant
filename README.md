@@ -24,7 +24,7 @@ Run one command:
 make demo
 ```
 
-(`make demo` runs fixture scraping + scoring + investigation artifact generation.)
+(`make demo` runs an offline, fixture-only collector pipeline + scoring + investigation artifact generation.)
 
 `make demo` outputs:
 
@@ -121,9 +121,9 @@ API output snapshots (for reproducible endpoint evidence):
 |---|---|
 | ![Insider Risk Endpoint](docs/screenshots/insider_risk_endpoint.png) | ![Supply Chain Risk Endpoint](docs/screenshots/supply_chain_risk_endpoint.png) |
 
-Dashboard investigation queues panel:
+Investigation queues payload snapshot:
 
-![Dashboard Investigation Queues](docs/screenshots/investigation_queues_panel.png)
+![Investigation Queues Payload](docs/screenshots/investigation_queues_panel.png)
 
 Cross-domain convergence output:
 
@@ -287,6 +287,8 @@ pip install -r requirements.txt
 make demo
 ```
 
+`make demo` is deterministic and does not depend on live external feeds.
+
 Expected artifacts:
 
 - `docs/sample_casepack.md`
@@ -399,11 +401,11 @@ Source reliability controls:
 ### Core Analyst Workflow
 
 - `GET /alerts`
-- `GET /alerts/{id}/score?uncertainty=1`
-- `POST /alerts/{id}/disposition`
-- `GET /pois/{id}/assessment`
+- `GET /alerts/{alert_id}/score?uncertainty=1`
+- `POST /alerts/{alert_id}/disposition`
+- `GET /pois/{poi_id}/assessment`
 - `POST /briefs/travel`
-- `POST /sitreps/generate/poi/{id}`
+- `POST /sitreps/generate/poi/{poi_id}`
 
 ## Example: Pull Investigation Threads
 
@@ -493,6 +495,7 @@ Generated case-pack artifact:
 - API key auth uses `PI_API_KEY` (or legacy `OSINT_API_KEY`).
 - If key enforcement is enabled (`PI_REQUIRE_API_KEY=1`), endpoints with auth dependency require `X-API-Key`.
 - Local dev can run without auth when keys are unset.
+- `run.py api` refuses non-loopback binds without auth unless explicitly overridden with `PI_ALLOW_INSECURE_BIND=1`.
 
 ### Request/Audit Controls
 

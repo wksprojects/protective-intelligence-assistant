@@ -10,8 +10,8 @@ init: ## Initialize database and seed EP config from watchlist.yaml
 sync: ## Sync watchlist config into existing database
 	python run.py sync
 
-demo: init ## Full demo: init → load fixtures → generate artifacts → print URLs
-	PI_ENABLE_TELEGRAM_COLLECTOR=1 PI_ENABLE_CHANS_COLLECTOR=1 PI_ENABLE_SUPPLY_CHAIN=1 python run.py scrape
+demo: init ## Full demo: init → fixture-only collectors → generate artifacts → print URLs
+	python scripts/run_demo_fixture_pipeline.py
 	python run.py demo
 	python run.py casepack
 	python scripts/generate_demo_proof_artifacts.py

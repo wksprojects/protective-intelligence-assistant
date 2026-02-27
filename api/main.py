@@ -121,6 +121,44 @@ def _check_scrape_rate_limit():
         )
 
 
+def _latest_source_health(source_type: str):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """SELECT source_type, name, last_status, last_error, fail_streak,
+                      last_collection_count, disabled_reason
+            FROM sources
+            WHERE source_type = ?
+            ORDER BY id DESC
+            LIMIT 1""",
+            (str(source_type),),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def _scrape_collector_response(source_name: str, source_type: str, ingested: int):
+    health = _latest_source_health(source_type)
+    payload = {"ingested": int(ingested), "source": source_name}
+    if not health:
+        payload["status"] = "unknown"
+        return payload
+
+    status = str(health.get("last_status") or "unknown")
+    payload["status"] = status
+    payload["fail_streak"] = int(health.get("fail_streak") or 0)
+    if health.get("last_error"):
+        payload["detail"] = str(health["last_error"])
+
+    if status == "error":
+        raise HTTPException(
+            status_code=503,
+            detail=f"{source_name} collector error: {health.get('last_error') or 'unknown'}",
+        )
+    return payload
+
+
 def startup():
     """Init DB, migrate schema, seed defaults on first run."""
     init_db()
@@ -1737,7 +1775,8 @@ def trigger_telegram_scrape():
     _check_scrape_rate_limit()
     from collectors.telegram import collect_telegram
 
-    return {"ingested": collect_telegram(), "source": "telegram_prototype"}
+    ingested = collect_telegram()
+    return _scrape_collector_response("telegram_prototype", "telegram", ingested)
 
 
 @app.post("/scrape/chans", dependencies=[Depends(verify_api_key)])
@@ -1746,7 +1785,8 @@ def trigger_chans_scrape():
     _check_scrape_rate_limit()
     from collectors.chans import collect_chans
 
-    return {"ingested": collect_chans(), "source": "chans_prototype"}
+    ingested = collect_chans()
+    return _scrape_collector_response("chans_prototype", "chans", ingested)
 
 
 @app.post("/scrape/insider", dependencies=[Depends(verify_api_key)])
@@ -1755,7 +1795,8 @@ def trigger_insider_scrape():
     _check_scrape_rate_limit()
     from collectors.insider_telemetry import collect_insider_telemetry
 
-    return {"ingested": collect_insider_telemetry(), "source": "insider_telemetry"}
+    ingested = collect_insider_telemetry()
+    return _scrape_collector_response("insider_telemetry", "insider", ingested)
 
 
 @app.post("/scrape/supply-chain", dependencies=[Depends(verify_api_key)])
@@ -1764,7 +1805,8 @@ def trigger_supply_chain_scrape():
     _check_scrape_rate_limit()
     from collectors.supply_chain import collect_supply_chain
 
-    return {"ingested": collect_supply_chain(), "source": "supply_chain_scaffold"}
+    ingested = collect_supply_chain()
+    return _scrape_collector_response("supply_chain_scaffold", "supply_chain", ingested)
 
 
 @app.post("/ingest/insider-events", dependencies=[Depends(verify_api_key)])

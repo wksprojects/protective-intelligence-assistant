@@ -40,6 +40,15 @@ from database.init_db import (
 from collectors import run_all_collectors
 
 
+def _truthy_env(value):
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_loopback_host(host):
+    value = str(host or "").strip().lower()
+    return value in {"127.0.0.1", "localhost", "::1"}
+
+
 def purge_demo_content():
     conn = get_connection()
     try:
@@ -149,6 +158,15 @@ def main():
         migrate_schema()
         api_host = os.getenv("PI_API_HOST", "127.0.0.1")
         api_port = str(os.getenv("PI_API_PORT", "8000"))
+        resolved_api_key = (os.getenv("PI_API_KEY") or os.getenv("OSINT_API_KEY", "")).strip()
+        auth_required = _truthy_env(os.getenv("PI_REQUIRE_API_KEY", "0")) or bool(resolved_api_key)
+        allow_insecure_bind = _truthy_env(os.getenv("PI_ALLOW_INSECURE_BIND", "0"))
+        if not auth_required and not _is_loopback_host(api_host) and not allow_insecure_bind:
+            raise RuntimeError(
+                "Refusing to bind non-loopback API host without authentication. "
+                "Set PI_API_KEY (or PI_REQUIRE_API_KEY=1), switch PI_API_HOST to 127.0.0.1, "
+                "or set PI_ALLOW_INSECURE_BIND=1 for explicit local testing."
+            )
         subprocess.run(
             ["uvicorn", "api.main:app", "--host", api_host, "--port", api_port, "--reload"]
         )
