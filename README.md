@@ -9,6 +9,29 @@ The platform ingests open-source signals, links related activity into incident t
 
 Quant hook: implements a multi-weighted scoring engine for cross-platform entity resolution and incident threading.
 
+## 90-Second Proof
+
+- Insider investigations: explainable IRS scoring over behavioral telemetry anomalies.
+- Third-party/vendor risk: weighted vendor risk scoring with clear reason codes.
+- Cross-domain correlation: unified SOI threads linking insider + external + vendor pivots.
+
+Run one command:
+
+```bash
+make demo
+```
+
+`make demo` outputs:
+
+- `docs/demo_daily_report.md`
+- `docs/demo_travel_brief.md`
+- `docs/protectee_view.svg`
+- `docs/map_view.svg`
+
+Committed synthetic casepack (detection -> thread -> evidence -> disposition):
+
+- `docs/synthetic_casepack.md`
+
 ## Headline Metrics (Latest Local Run - February 27, 2026)
 
 - Correlation linkage quality on hand-labeled scenarios: **Precision 0.8750 / Recall 0.8750 / F1 0.8750** (`make correlation-eval`).
