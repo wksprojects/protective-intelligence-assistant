@@ -19,6 +19,8 @@ SOURCE_DEFAULT_CREDIBILITY = {
     "darkweb": 0.2,
     "telegram": 0.35,
     "chans": 0.2,
+    "insider": 0.75,
+    "supply_chain": 0.6,
 }
 
 GDELT_DOC_API_BASE_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
@@ -503,6 +505,63 @@ def migrate_schema():
             FOREIGN KEY (trigger_poi_id) REFERENCES pois(id) ON DELETE SET NULL,
             FOREIGN KEY (trigger_location_id) REFERENCES protected_locations(id) ON DELETE SET NULL
         );
+        CREATE TABLE IF NOT EXISTS insider_telemetry_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scenario_id TEXT NOT NULL UNIQUE,
+            subject_id TEXT NOT NULL,
+            subject_name TEXT NOT NULL,
+            subject_handle TEXT,
+            event_ts TEXT NOT NULL,
+            event_score REAL NOT NULL,
+            expected_label TEXT,
+            taxonomy_json TEXT,
+            signal_json TEXT,
+            reason_codes_json TEXT,
+            related_entities_json TEXT,
+            source_alert_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (source_alert_id) REFERENCES alerts(id) ON DELETE SET NULL
+        );
+        CREATE TABLE IF NOT EXISTS insider_risk_assessments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject_id TEXT NOT NULL UNIQUE,
+            subject_name TEXT NOT NULL,
+            subject_handle TEXT,
+            irs_score REAL NOT NULL,
+            risk_tier TEXT NOT NULL,
+            reason_codes_json TEXT,
+            signal_breakdown_json TEXT,
+            taxonomy_hits_json TEXT,
+            event_count INTEGER DEFAULT 0,
+            latest_event_ts TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS supply_chain_vendor_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id TEXT NOT NULL UNIQUE,
+            vendor_name TEXT NOT NULL,
+            country TEXT,
+            vendor_domain TEXT,
+            expected_label TEXT,
+            factors_json TEXT,
+            source_alert_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (source_alert_id) REFERENCES alerts(id) ON DELETE SET NULL
+        );
+        CREATE TABLE IF NOT EXISTS supply_chain_risk_assessments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id TEXT NOT NULL UNIQUE,
+            vendor_name TEXT NOT NULL,
+            country TEXT,
+            vendor_domain TEXT,
+            vendor_risk_score REAL NOT NULL,
+            risk_tier TEXT NOT NULL,
+            reason_codes_json TEXT,
+            factor_breakdown_json TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
     )
 
@@ -552,6 +611,10 @@ def migrate_schema():
         "CREATE INDEX IF NOT EXISTS idx_sitreps_status ON sitreps(status)",
         "CREATE INDEX IF NOT EXISTS idx_sitreps_created ON sitreps(created_at)",
         "CREATE INDEX IF NOT EXISTS idx_sitreps_trigger_poi ON sitreps(trigger_poi_id)",
+        "CREATE INDEX IF NOT EXISTS idx_insider_events_subject_ts ON insider_telemetry_events(subject_id, event_ts)",
+        "CREATE INDEX IF NOT EXISTS idx_insider_assessments_score ON insider_risk_assessments(irs_score)",
+        "CREATE INDEX IF NOT EXISTS idx_supply_chain_profiles_country ON supply_chain_vendor_profiles(country)",
+        "CREATE INDEX IF NOT EXISTS idx_supply_chain_assessments_score ON supply_chain_risk_assessments(vendor_risk_score)",
     ]
     for sql in indexes:
         try:
@@ -635,7 +698,16 @@ def load_watchlist_yaml(config_path=None):
 
     source_block = payload.get("sources", {})
     if isinstance(source_block, dict):
-        for source_type in ("rss", "reddit", "pastebin", "darkweb", "telegram", "chans"):
+        for source_type in (
+            "rss",
+            "reddit",
+            "pastebin",
+            "darkweb",
+            "telegram",
+            "chans",
+            "insider",
+            "supply_chain",
+        ):
             entries = source_block.get(source_type, [])
             if not isinstance(entries, list):
                 continue

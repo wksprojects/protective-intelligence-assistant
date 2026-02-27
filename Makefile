@@ -1,4 +1,4 @@
-.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark correlation-eval heartbeat casepack clean help
+.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark correlation-eval insider-eval heartbeat casepack clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -52,6 +52,9 @@ benchmark: ## Generate compact benchmark metrics table
 correlation-eval: ## Evaluate correlation engine precision/recall on hand-labeled cases
 	python scripts/generate_correlation_eval.py
 
+insider-eval: ## Evaluate insider-risk scorer precision/recall on labeled fixtures
+	python scripts/generate_insider_eval.py
+
 heartbeat: ## Generate source health heartbeat snapshot + append-only log
 	python scripts/generate_source_health_heartbeat.py
 
@@ -64,6 +67,7 @@ clean: ## Remove database and cached artifacts
 	rm -f docs/evaluation_memo.md
 	rm -f docs/benchmark_table.md
 	rm -f docs/correlation_eval.md
+	rm -f docs/insider_eval.md
 	rm -f docs/source_health_heartbeat.md
 	rm -f docs/source_health_heartbeat.jsonl
 	rm -f docs/incident_thread_casepack.md

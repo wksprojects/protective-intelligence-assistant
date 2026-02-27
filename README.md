@@ -1,22 +1,26 @@
 # Protective Intelligence Assistant
 
-Automated behavioral threat assessment via multi-source correlation for protective intelligence workflows.
+Automated protective-intelligence analysis via cross-domain correlation across cyber, physical, and human-behavior signals.
 
 The platform ingests open-source signals, links related activity into incident threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
 
 Quant hook: implements a multi-weighted scoring engine for cross-platform entity resolution and incident threading.
 
-## Headline Metrics (Latest Local Run - February 23, 2026)
+## Headline Metrics (Latest Local Run - February 27, 2026)
 
 - Correlation linkage quality on hand-labeled scenarios: **Precision 0.8750 / Recall 0.8750 / F1 0.8750** (`make correlation-eval`).
+- Insider-risk fixture evaluation (threshold 55.0): **Precision 1.0000 / Recall 1.0000 / F1 1.0000** (`make insider-eval`).
+- Supply-chain scaffold coverage: **6 vendor profiles** scored across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
 - Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
-- Engineering verification: **87 automated tests passing** (`pytest -q`).
+- Engineering verification: **93 automated tests passing** (`pytest -q`).
 
 ## What This Project Demonstrates
 
 - Protective intelligence workflow design, not just alert scraping.
 - Quantitative triage with explainable scoring (ORS, TAS, uncertainty intervals).
-- Correlation logic that reduces analyst noise by clustering related signals into Subject of Interest (SOI) threads.
+- Correlation logic that reduces analyst noise by clustering related signals into Subject of Interest (SOI) threads across cyber, physical, and human-behavior inputs.
+- Insider threat detection via fixture-driven UEBA-style telemetry and explainable Insider Risk Score (IRS).
+- Supply chain risk assessment scaffold for third-party/vendor exposure prioritization.
 - Operational reliability patterns (source health, fail streaks, auto-disable of dead feeds).
 - High-consequence uptime posture: heartbeat snapshots + append-only health logs to surface silent collector failures.
 - Production-minded API, auditability, and environment-gated collectors.
@@ -27,6 +31,8 @@ Implemented now:
 
 - Multi-source ingestion: RSS, Reddit RSS, Pastebin, optional ACLED.
 - Environment-gated prototype collectors: Telegram and chans (fixture-first).
+- Insider telemetry collector + IRS analytics endpoint.
+- Environment-gated supply-chain collector scaffold + vendor risk endpoint.
 - Dark-web collector scaffold wired into pipeline, disabled by default.
 - SOI thread correlation endpoint.
 - Targeted source preset preview endpoint for event/location watchlist expansion.
@@ -57,6 +63,9 @@ flowchart LR
         ACLED["ACLED (optional)"]
         TG["Telegram prototype"]
         Chans["Chans prototype"]
+        Insider["Insider telemetry fixture"]
+        Physical["Badge/physical access logs (fixture)"]
+        Vendor["Supply-chain vendor fixture"]
         DW["Dark-web scaffold"]
     end
 
@@ -91,6 +100,9 @@ flowchart LR
     ACLED --> Collect
     TG --> Collect
     Chans --> Collect
+    Insider --> Collect
+    Physical --> Collect
+    Vendor --> Collect
     DW --> Collect
 
     Collect --> Match --> Extract --> DB
@@ -136,6 +148,13 @@ Note: vector index/semantic matching is planned, not in the current production p
 
 SOI threading uses a weighted pair-link model with explicit reason codes.
 Alerts are linked into a thread when cumulative linkage confidence clears the threshold.
+This same threader now accepts external OSINT alerts, insider telemetry-derived alerts, and supply-chain risk alerts in one pipeline.
+
+Cross-domain convergence examples:
+
+- cyber signal (`domain`, `ipv4`, `url`) + insider access anomaly in the same time window
+- physical/logical mismatch (badge vs login) + external reconnaissance chatter
+- human behavioral stressors + staged data movement + external indicator overlap
 
 Primary linkage signals:
 
@@ -211,6 +230,12 @@ Generate hand-labeled correlation precision/recall metrics:
 make correlation-eval
 ```
 
+Generate insider-risk precision/recall metrics:
+
+```bash
+make insider-eval
+```
+
 Generate an operational source-health heartbeat snapshot + append-only log:
 
 ```bash
@@ -223,6 +248,7 @@ Prototype and high-risk collectors are disabled by default.
 
 - `PI_ENABLE_TELEGRAM_COLLECTOR=1` enables Telegram prototype collector.
 - `PI_ENABLE_CHANS_COLLECTOR=1` enables chans prototype collector.
+- `PI_ENABLE_SUPPLY_CHAIN=1` enables supply-chain fixture scaffold collector.
 - `PI_ENABLE_DARKWEB_COLLECTOR=1` enables dark-web scaffold path (still non-operational by design).
 
 Source reliability controls:
@@ -235,6 +261,8 @@ Source reliability controls:
 ### Correlation and Intelligence
 
 - `GET /analytics/soi-threads`
+- `GET /analytics/insider-risk`
+- `GET /analytics/supply-chain-risk`
 - `GET /analytics/source-presets`
 - `GET /analytics/signal-quality`
 - `GET /analytics/source-health`
@@ -243,6 +271,8 @@ Source reliability controls:
 
 - `POST /scrape/telegram`
 - `POST /scrape/chans`
+- `POST /scrape/insider`
+- `POST /scrape/supply-chain`
 - `POST /scrape/social-media`
 
 ### Core Analyst Workflow
@@ -308,6 +338,7 @@ Current repo also includes:
 - ML comparison endpoint (`GET /analytics/ml-comparison`)
 - precision/recall analytics endpoint (`GET /analytics/evaluation`)
 - correlation-engine pairwise eval on hand-labeled cases (`fixtures/correlation_eval_cases.json`)
+- insider-risk eval on hand-labeled behavioral fixtures (`fixtures/insider_scenarios.json`)
 - benchmark index and reproducibility notes (`benchmarks/README.md`)
 
 ## Operational Health & Observability
@@ -376,7 +407,7 @@ Incremental modularization is now in place:
 python -m pytest tests/ -v
 ```
 
-Current suite status: 87 passing tests.
+Current suite status: 93 passing tests.
 
 ## Legal and Operational Note
 

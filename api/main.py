@@ -156,7 +156,7 @@ async def lifespan(application: FastAPI):
 
 app = FastAPI(
     title="Protective Intelligence Assistant API",
-    description="EP-focused REST API: protectee/facility/travel triage, ORS/TAS scoring, behavioral threat assessment, SITREPs, and explainable uncertainty.",
+    description="EP-focused REST API: protectee/facility/travel triage, ORS/TAS/IRS scoring, supply-chain risk scaffolding, SITREPs, and explainable uncertainty.",
     version="5.0.0",
     lifespan=lifespan,
 )
@@ -833,6 +833,28 @@ def get_source_health(
         for row in payload:
             row["last_error"] = None
     return payload
+
+
+@app.get("/analytics/insider-risk", dependencies=[Depends(verify_api_key)])
+def get_insider_risk(
+    min_score: float = Query(default=0.0, ge=0.0, le=100.0),
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    """Return current insider-risk assessments (IRS) with explainable reason codes."""
+    from analytics.insider_risk import list_insider_risk
+
+    return list_insider_risk(min_score=min_score, limit=limit)
+
+
+@app.get("/analytics/supply-chain-risk", dependencies=[Depends(verify_api_key)])
+def get_supply_chain_risk(
+    min_score: float = Query(default=0.0, ge=0.0, le=100.0),
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    """Return scored third-party/vendor risk assessments."""
+    from analytics.supply_chain_risk import list_supply_chain_risk
+
+    return list_supply_chain_risk(min_score=min_score, limit=limit)
 
 
 @app.get("/analytics/source-presets", dependencies=[Depends(verify_api_key)])
@@ -1713,6 +1735,24 @@ def trigger_chans_scrape():
     from collectors.chans import collect_chans
 
     return {"ingested": collect_chans(), "source": "chans_prototype"}
+
+
+@app.post("/scrape/insider", dependencies=[Depends(verify_api_key)])
+def trigger_insider_scrape():
+    """Trigger insider telemetry fixture ingestion and IRS refresh."""
+    _check_scrape_rate_limit()
+    from collectors.insider_telemetry import collect_insider_telemetry
+
+    return {"ingested": collect_insider_telemetry(), "source": "insider_telemetry"}
+
+
+@app.post("/scrape/supply-chain", dependencies=[Depends(verify_api_key)])
+def trigger_supply_chain_scrape():
+    """Trigger supply-chain fixture collector (env-gated)."""
+    _check_scrape_rate_limit()
+    from collectors.supply_chain import collect_supply_chain
+
+    return {"ingested": collect_supply_chain(), "source": "supply_chain_scaffold"}
 
 
 @app.get("/analytics/escalation-tiers", dependencies=[Depends(verify_api_key)])

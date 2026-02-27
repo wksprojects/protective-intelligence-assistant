@@ -5,6 +5,10 @@ from evals.correlation_engine_eval import (
     render_correlation_engine_eval_markdown,
     run_correlation_engine_evaluation,
 )
+from evals.insider_risk_eval import (
+    render_insider_risk_eval_markdown,
+    run_insider_risk_evaluation,
+)
 from evals.signal_quality import compute_signal_quality_view
 from evals.source_health_heartbeat import (
     build_source_health_heartbeat,
@@ -17,6 +21,8 @@ __all__ = [
     "render_benchmark_markdown",
     "run_correlation_engine_evaluation",
     "render_correlation_engine_eval_markdown",
+    "run_insider_risk_evaluation",
+    "render_insider_risk_eval_markdown",
     "compute_signal_quality_view",
     "build_source_health_heartbeat",
     "render_source_health_heartbeat_markdown",

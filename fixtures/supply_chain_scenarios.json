@@ -1,0 +1,80 @@
+[
+  {
+    "profile_id": "sc-001",
+    "vendor_name": "Northbridge Identity Operations",
+    "country": "RU",
+    "vendor_domain": "northbridge-id.example",
+    "single_point_of_failure": true,
+    "critical_dependency_percent": 88,
+    "privilege_scope": "domain_admin",
+    "data_sensitivity": "critical",
+    "compliance_posture": "material_findings",
+    "recent_incidents": 3,
+    "expected_label": "flagged"
+  },
+  {
+    "profile_id": "sc-002",
+    "vendor_name": "Harborview Facilities Services",
+    "country": "US",
+    "vendor_domain": "harborview-facilities.example",
+    "single_point_of_failure": false,
+    "critical_dependency_percent": 22,
+    "privilege_scope": "limited",
+    "data_sensitivity": "low",
+    "compliance_posture": "strong",
+    "recent_incidents": 0,
+    "expected_label": "clean"
+  },
+  {
+    "profile_id": "sc-003",
+    "vendor_name": "Blue Meridian Travel Partners",
+    "country": "MX",
+    "vendor_domain": "blue-meridian-travel.example",
+    "single_point_of_failure": false,
+    "critical_dependency_percent": 47,
+    "privilege_scope": "moderate",
+    "data_sensitivity": "high",
+    "compliance_posture": "adequate",
+    "recent_incidents": 1,
+    "expected_label": "watch"
+  },
+  {
+    "profile_id": "sc-004",
+    "vendor_name": "Aster Cloud Analytics",
+    "country": "CN",
+    "vendor_domain": "aster-cloud.example",
+    "single_point_of_failure": true,
+    "critical_dependency_percent": 76,
+    "privilege_scope": "admin",
+    "data_sensitivity": "critical",
+    "compliance_posture": "gaps",
+    "recent_incidents": 2,
+    "expected_label": "flagged"
+  },
+  {
+    "profile_id": "sc-005",
+    "vendor_name": "Summit Badge Integrations",
+    "country": "TR",
+    "vendor_domain": "summit-badge.example",
+    "single_point_of_failure": true,
+    "critical_dependency_percent": 61,
+    "privilege_scope": "admin",
+    "data_sensitivity": "high",
+    "compliance_posture": "gaps",
+    "recent_incidents": 1,
+    "expected_label": "watch"
+  },
+  {
+    "profile_id": "sc-006",
+    "vendor_name": "Praxis Payroll Outsourcing",
+    "country": "US",
+    "vendor_domain": "praxis-payroll.example",
+    "single_point_of_failure": false,
+    "critical_dependency_percent": 40,
+    "privilege_scope": "moderate",
+    "data_sensitivity": "critical",
+    "compliance_posture": "strong",
+    "recent_incidents": 0,
+    "expected_label": "watch"
+  }
+]

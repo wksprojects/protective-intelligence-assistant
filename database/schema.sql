@@ -312,3 +312,64 @@ CREATE TABLE IF NOT EXISTS travel_briefs (
     content_md TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS insider_telemetry_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scenario_id TEXT NOT NULL UNIQUE,
+    subject_id TEXT NOT NULL,
+    subject_name TEXT NOT NULL,
+    subject_handle TEXT,
+    event_ts TEXT NOT NULL,
+    event_score REAL NOT NULL,
+    expected_label TEXT,
+    taxonomy_json TEXT,
+    signal_json TEXT,
+    reason_codes_json TEXT,
+    related_entities_json TEXT,
+    source_alert_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_alert_id) REFERENCES alerts(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS insider_risk_assessments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subject_id TEXT NOT NULL UNIQUE,
+    subject_name TEXT NOT NULL,
+    subject_handle TEXT,
+    irs_score REAL NOT NULL,
+    risk_tier TEXT NOT NULL,
+    reason_codes_json TEXT,
+    signal_breakdown_json TEXT,
+    taxonomy_hits_json TEXT,
+    event_count INTEGER DEFAULT 0,
+    latest_event_ts TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS supply_chain_vendor_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id TEXT NOT NULL UNIQUE,
+    vendor_name TEXT NOT NULL,
+    country TEXT,
+    vendor_domain TEXT,
+    expected_label TEXT,
+    factors_json TEXT,
+    source_alert_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_alert_id) REFERENCES alerts(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS supply_chain_risk_assessments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id TEXT NOT NULL UNIQUE,
+    vendor_name TEXT NOT NULL,
+    country TEXT,
+    vendor_domain TEXT,
+    vendor_risk_score REAL NOT NULL,
+    risk_tier TEXT NOT NULL,
+    reason_codes_json TEXT,
+    factor_breakdown_json TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

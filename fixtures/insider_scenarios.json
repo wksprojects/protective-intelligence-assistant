@@ -1,0 +1,578 @@
+[
+  {
+    "scenario_id": "ins-001",
+    "subject_id": "EMP-1042",
+    "subject_name": "S. Holloway",
+    "subject_handle": "@s.holloway",
+    "event_ts": "2026-02-24 22:14:00",
+    "title": "Off-hours privileged repo access followed by large cloud transfer",
+    "summary": "Subject accessed multiple restricted engineering repositories after midnight and initiated sustained outbound transfer to unsanctioned cloud destination.",
+    "access": {
+      "off_hours_ratio": 0.88,
+      "frequency_zscore": 3.4,
+      "sensitive_resource_touches": 19,
+      "new_sensitive_repos": 4
+    },
+    "data_movement": {
+      "download_gb": 46.0,
+      "baseline_gb": 5.5,
+      "usb_write_events": 6,
+      "cloud_upload_mb": 18400
+    },
+    "physical_logical": {
+      "badge_present": false,
+      "login_without_badge_count": 3,
+      "impossible_travel_events": 1,
+      "after_hours_badge_swipes": 0
+    },
+    "hr_flags": {
+      "pip": true,
+      "resignation_pending": false,
+      "termination_pending": true
+    },
+    "communications": {
+      "after_hours_ratio": 0.72,
+      "new_external_contacts": 11,
+      "external_contact_baseline": 2,
+      "new_encrypted_channels": 3
+    },
+    "access_escalation": {
+      "privilege_change_events": 2,
+      "failed_admin_attempts": 8
+    },
+    "temporal": {
+      "weekend_sessions": 2,
+      "overnight_sessions": 5
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": true,
+      "data_staging": true,
+      "exfiltration_indicators": true,
+      "access_escalation": true,
+      "temporal_anomalies": true
+    },
+    "related_entities": [
+      {"entity_type": "domain", "entity_value": "drop-sync.example"},
+      {"entity_type": "ipv4", "entity_value": "198.51.100.23"}
+    ],
+    "prior_30d_mean_irs": 41.0,
+    "expected_label": "true_positive"
+  },
+  {
+    "scenario_id": "ins-002",
+    "subject_id": "EMP-1042",
+    "subject_name": "S. Holloway",
+    "subject_handle": "@s.holloway",
+    "event_ts": "2026-02-25 01:42:00",
+    "title": "Second-night anomaly with badge mismatch and USB activity",
+    "summary": "Repeated after-hours access to finance data share, USB write activity, and no matching badge swipe for remote terminal login.",
+    "access": {
+      "off_hours_ratio": 0.81,
+      "frequency_zscore": 2.9,
+      "sensitive_resource_touches": 15,
+      "new_sensitive_repos": 2
+    },
+    "data_movement": {
+      "download_gb": 21.0,
+      "baseline_gb": 4.8,
+      "usb_write_events": 5,
+      "cloud_upload_mb": 7400
+    },
+    "physical_logical": {
+      "badge_present": false,
+      "login_without_badge_count": 2,
+      "impossible_travel_events": 1,
+      "after_hours_badge_swipes": 0
+    },
+    "hr_flags": {
+      "pip": true,
+      "resignation_pending": false,
+      "termination_pending": true
+    },
+    "communications": {
+      "after_hours_ratio": 0.64,
+      "new_external_contacts": 7,
+      "external_contact_baseline": 2,
+      "new_encrypted_channels": 2
+    },
+    "access_escalation": {
+      "privilege_change_events": 1,
+      "failed_admin_attempts": 5
+    },
+    "temporal": {
+      "weekend_sessions": 2,
+      "overnight_sessions": 4
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": true,
+      "data_staging": true,
+      "exfiltration_indicators": true,
+      "access_escalation": true,
+      "temporal_anomalies": true
+    },
+    "related_entities": [
+      {"entity_type": "domain", "entity_value": "drop-sync.example"}
+    ],
+    "prior_30d_mean_irs": 54.0,
+    "expected_label": "true_positive"
+  },
+  {
+    "scenario_id": "ins-003",
+    "subject_id": "EMP-2209",
+    "subject_name": "M. Patel",
+    "subject_handle": "@m.patel",
+    "event_ts": "2026-02-24 03:18:00",
+    "title": "Planned maintenance window access spike",
+    "summary": "Overnight elevated authentication volume aligned to approved patching window and documented change ticket.",
+    "access": {
+      "off_hours_ratio": 0.69,
+      "frequency_zscore": 2.2,
+      "sensitive_resource_touches": 6,
+      "new_sensitive_repos": 0
+    },
+    "data_movement": {
+      "download_gb": 5.1,
+      "baseline_gb": 4.6,
+      "usb_write_events": 0,
+      "cloud_upload_mb": 210
+    },
+    "physical_logical": {
+      "badge_present": true,
+      "login_without_badge_count": 0,
+      "impossible_travel_events": 0,
+      "after_hours_badge_swipes": 2
+    },
+    "hr_flags": {
+      "pip": false,
+      "resignation_pending": false,
+      "termination_pending": false
+    },
+    "communications": {
+      "after_hours_ratio": 0.41,
+      "new_external_contacts": 1,
+      "external_contact_baseline": 1,
+      "new_encrypted_channels": 0
+    },
+    "access_escalation": {
+      "privilege_change_events": 0,
+      "failed_admin_attempts": 1
+    },
+    "temporal": {
+      "weekend_sessions": 1,
+      "overnight_sessions": 2
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": false,
+      "data_staging": false,
+      "exfiltration_indicators": false,
+      "access_escalation": false,
+      "temporal_anomalies": true
+    },
+    "related_entities": [],
+    "prior_30d_mean_irs": 32.0,
+    "expected_label": "benign_anomaly"
+  },
+  {
+    "scenario_id": "ins-004",
+    "subject_id": "EMP-3377",
+    "subject_name": "T. Nguyen",
+    "subject_handle": "@t.nguyen",
+    "event_ts": "2026-02-24 19:37:00",
+    "title": "Large data pull during approved migration",
+    "summary": "One-time bulk export tied to documented migration of analytics warehouse to managed service provider.",
+    "access": {
+      "off_hours_ratio": 0.34,
+      "frequency_zscore": 1.1,
+      "sensitive_resource_touches": 5,
+      "new_sensitive_repos": 0
+    },
+    "data_movement": {
+      "download_gb": 61.0,
+      "baseline_gb": 9.5,
+      "usb_write_events": 0,
+      "cloud_upload_mb": 5200
+    },
+    "physical_logical": {
+      "badge_present": true,
+      "login_without_badge_count": 0,
+      "impossible_travel_events": 0,
+      "after_hours_badge_swipes": 1
+    },
+    "hr_flags": {
+      "pip": false,
+      "resignation_pending": false,
+      "termination_pending": false
+    },
+    "communications": {
+      "after_hours_ratio": 0.18,
+      "new_external_contacts": 0,
+      "external_contact_baseline": 1,
+      "new_encrypted_channels": 0
+    },
+    "access_escalation": {
+      "privilege_change_events": 0,
+      "failed_admin_attempts": 0
+    },
+    "temporal": {
+      "weekend_sessions": 0,
+      "overnight_sessions": 1
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": false,
+      "data_staging": true,
+      "exfiltration_indicators": false,
+      "access_escalation": false,
+      "temporal_anomalies": false
+    },
+    "related_entities": [
+      {"entity_type": "domain", "entity_value": "migrate-archive.example"}
+    ],
+    "prior_30d_mean_irs": 27.0,
+    "expected_label": "false_positive"
+  },
+  {
+    "scenario_id": "ins-005",
+    "subject_id": "EMP-8891",
+    "subject_name": "J. Ortega",
+    "subject_handle": "@j.ortega",
+    "event_ts": "2026-02-25 23:58:00",
+    "title": "Attempted privilege escalation and HR stressor convergence",
+    "summary": "Multiple failed admin actions and unauthorized role-group changes observed during off-hours within 48h of termination notice.",
+    "access": {
+      "off_hours_ratio": 0.77,
+      "frequency_zscore": 2.7,
+      "sensitive_resource_touches": 11,
+      "new_sensitive_repos": 3
+    },
+    "data_movement": {
+      "download_gb": 13.0,
+      "baseline_gb": 4.0,
+      "usb_write_events": 2,
+      "cloud_upload_mb": 2900
+    },
+    "physical_logical": {
+      "badge_present": false,
+      "login_without_badge_count": 2,
+      "impossible_travel_events": 0,
+      "after_hours_badge_swipes": 0
+    },
+    "hr_flags": {
+      "pip": true,
+      "resignation_pending": false,
+      "termination_pending": true
+    },
+    "communications": {
+      "after_hours_ratio": 0.58,
+      "new_external_contacts": 5,
+      "external_contact_baseline": 2,
+      "new_encrypted_channels": 1
+    },
+    "access_escalation": {
+      "privilege_change_events": 3,
+      "failed_admin_attempts": 10
+    },
+    "temporal": {
+      "weekend_sessions": 1,
+      "overnight_sessions": 4
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": true,
+      "data_staging": false,
+      "exfiltration_indicators": false,
+      "access_escalation": true,
+      "temporal_anomalies": true
+    },
+    "related_entities": [
+      {"entity_type": "ipv4", "entity_value": "203.0.113.76"}
+    ],
+    "prior_30d_mean_irs": 38.0,
+    "expected_label": "true_positive"
+  },
+  {
+    "scenario_id": "ins-006",
+    "subject_id": "EMP-6613",
+    "subject_name": "A. Reed",
+    "subject_handle": "@a.reed",
+    "event_ts": "2026-02-25 02:26:00",
+    "title": "After-hours communication burst during active incident response",
+    "summary": "Communication metadata anomalies present during declared Sev-1 outage; no unusual data movement or privilege changes observed.",
+    "access": {
+      "off_hours_ratio": 0.52,
+      "frequency_zscore": 1.4,
+      "sensitive_resource_touches": 4,
+      "new_sensitive_repos": 0
+    },
+    "data_movement": {
+      "download_gb": 3.6,
+      "baseline_gb": 3.2,
+      "usb_write_events": 0,
+      "cloud_upload_mb": 180
+    },
+    "physical_logical": {
+      "badge_present": true,
+      "login_without_badge_count": 0,
+      "impossible_travel_events": 0,
+      "after_hours_badge_swipes": 1
+    },
+    "hr_flags": {
+      "pip": false,
+      "resignation_pending": false,
+      "termination_pending": false
+    },
+    "communications": {
+      "after_hours_ratio": 0.85,
+      "new_external_contacts": 4,
+      "external_contact_baseline": 2,
+      "new_encrypted_channels": 1
+    },
+    "access_escalation": {
+      "privilege_change_events": 0,
+      "failed_admin_attempts": 1
+    },
+    "temporal": {
+      "weekend_sessions": 1,
+      "overnight_sessions": 3
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": false,
+      "data_staging": false,
+      "exfiltration_indicators": false,
+      "access_escalation": false,
+      "temporal_anomalies": true
+    },
+    "related_entities": [],
+    "prior_30d_mean_irs": 29.0,
+    "expected_label": "benign_anomaly"
+  },
+  {
+    "scenario_id": "ins-007",
+    "subject_id": "EMP-5074",
+    "subject_name": "L. Brooks",
+    "subject_handle": "@l.brooks",
+    "event_ts": "2026-02-26 00:47:00",
+    "title": "Late-night recon on restricted engineering docs",
+    "summary": "Subject repeatedly queried architectural diagrams and access-control documentation not in normal role profile, then attempted access to privileged bastion host.",
+    "access": {
+      "off_hours_ratio": 0.83,
+      "frequency_zscore": 2.8,
+      "sensitive_resource_touches": 14,
+      "new_sensitive_repos": 3
+    },
+    "data_movement": {
+      "download_gb": 9.4,
+      "baseline_gb": 2.2,
+      "usb_write_events": 1,
+      "cloud_upload_mb": 1300
+    },
+    "physical_logical": {
+      "badge_present": false,
+      "login_without_badge_count": 2,
+      "impossible_travel_events": 1,
+      "after_hours_badge_swipes": 0
+    },
+    "hr_flags": {
+      "pip": false,
+      "resignation_pending": true,
+      "termination_pending": false
+    },
+    "communications": {
+      "after_hours_ratio": 0.51,
+      "new_external_contacts": 6,
+      "external_contact_baseline": 3,
+      "new_encrypted_channels": 2
+    },
+    "access_escalation": {
+      "privilege_change_events": 2,
+      "failed_admin_attempts": 6
+    },
+    "temporal": {
+      "weekend_sessions": 1,
+      "overnight_sessions": 4
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": true,
+      "data_staging": false,
+      "exfiltration_indicators": false,
+      "access_escalation": true,
+      "temporal_anomalies": true
+    },
+    "related_entities": [
+      {"entity_type": "domain", "entity_value": "bastion-sync.example"}
+    ],
+    "prior_30d_mean_irs": 33.0,
+    "expected_label": "true_positive"
+  },
+  {
+    "scenario_id": "ins-008",
+    "subject_id": "EMP-1188",
+    "subject_name": "K. Diaz",
+    "subject_handle": "@k.diaz",
+    "event_ts": "2026-02-24 14:09:00",
+    "title": "Cloud upload anomaly with sanctioned backup activity",
+    "summary": "Large cloud upload triggered anomaly detector but aligns to approved quarterly endpoint backup and no corroborating suspicious signals.",
+    "access": {
+      "off_hours_ratio": 0.22,
+      "frequency_zscore": 0.8,
+      "sensitive_resource_touches": 2,
+      "new_sensitive_repos": 0
+    },
+    "data_movement": {
+      "download_gb": 2.7,
+      "baseline_gb": 2.1,
+      "usb_write_events": 0,
+      "cloud_upload_mb": 14800
+    },
+    "physical_logical": {
+      "badge_present": true,
+      "login_without_badge_count": 0,
+      "impossible_travel_events": 0,
+      "after_hours_badge_swipes": 1
+    },
+    "hr_flags": {
+      "pip": false,
+      "resignation_pending": false,
+      "termination_pending": false
+    },
+    "communications": {
+      "after_hours_ratio": 0.14,
+      "new_external_contacts": 0,
+      "external_contact_baseline": 1,
+      "new_encrypted_channels": 0
+    },
+    "access_escalation": {
+      "privilege_change_events": 0,
+      "failed_admin_attempts": 0
+    },
+    "temporal": {
+      "weekend_sessions": 0,
+      "overnight_sessions": 0
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": false,
+      "data_staging": false,
+      "exfiltration_indicators": false,
+      "access_escalation": false,
+      "temporal_anomalies": false
+    },
+    "related_entities": [
+      {"entity_type": "domain", "entity_value": "backup-gateway.example"}
+    ],
+    "prior_30d_mean_irs": 24.0,
+    "expected_label": "false_positive"
+  },
+  {
+    "scenario_id": "ins-009",
+    "subject_id": "EMP-7415",
+    "subject_name": "C. Webb",
+    "subject_handle": "@c.webb",
+    "event_ts": "2026-02-26 03:36:00",
+    "title": "Sustained high-volume extraction with external contact expansion",
+    "summary": "Subject staged repeated exports from HR/legal shares and opened new external communication relationships shortly after resignation submission.",
+    "access": {
+      "off_hours_ratio": 0.79,
+      "frequency_zscore": 3.1,
+      "sensitive_resource_touches": 17,
+      "new_sensitive_repos": 3
+    },
+    "data_movement": {
+      "download_gb": 33.0,
+      "baseline_gb": 4.1,
+      "usb_write_events": 4,
+      "cloud_upload_mb": 9600
+    },
+    "physical_logical": {
+      "badge_present": false,
+      "login_without_badge_count": 2,
+      "impossible_travel_events": 1,
+      "after_hours_badge_swipes": 0
+    },
+    "hr_flags": {
+      "pip": false,
+      "resignation_pending": true,
+      "termination_pending": false
+    },
+    "communications": {
+      "after_hours_ratio": 0.68,
+      "new_external_contacts": 9,
+      "external_contact_baseline": 2,
+      "new_encrypted_channels": 2
+    },
+    "access_escalation": {
+      "privilege_change_events": 1,
+      "failed_admin_attempts": 4
+    },
+    "temporal": {
+      "weekend_sessions": 2,
+      "overnight_sessions": 4
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": true,
+      "data_staging": true,
+      "exfiltration_indicators": true,
+      "access_escalation": true,
+      "temporal_anomalies": true
+    },
+    "related_entities": [
+      {"entity_type": "domain", "entity_value": "sync-archive.example"},
+      {"entity_type": "ipv4", "entity_value": "203.0.113.142"}
+    ],
+    "prior_30d_mean_irs": 36.0,
+    "expected_label": "true_positive"
+  },
+  {
+    "scenario_id": "ins-010",
+    "subject_id": "EMP-5520",
+    "subject_name": "R. Kim",
+    "subject_handle": "@r.kim",
+    "event_ts": "2026-02-25 05:11:00",
+    "title": "Geographically inconsistent login with travel exception",
+    "summary": "Impossible-travel alert fired between office and hotel VPN endpoint during approved on-site travel and conference activity.",
+    "access": {
+      "off_hours_ratio": 0.44,
+      "frequency_zscore": 1.2,
+      "sensitive_resource_touches": 3,
+      "new_sensitive_repos": 0
+    },
+    "data_movement": {
+      "download_gb": 4.2,
+      "baseline_gb": 3.1,
+      "usb_write_events": 0,
+      "cloud_upload_mb": 260
+    },
+    "physical_logical": {
+      "badge_present": true,
+      "login_without_badge_count": 0,
+      "impossible_travel_events": 1,
+      "after_hours_badge_swipes": 1
+    },
+    "hr_flags": {
+      "pip": false,
+      "resignation_pending": false,
+      "termination_pending": false
+    },
+    "communications": {
+      "after_hours_ratio": 0.28,
+      "new_external_contacts": 1,
+      "external_contact_baseline": 1,
+      "new_encrypted_channels": 0
+    },
+    "access_escalation": {
+      "privilege_change_events": 0,
+      "failed_admin_attempts": 1
+    },
+    "temporal": {
+      "weekend_sessions": 1,
+      "overnight_sessions": 2
+    },
+    "taxonomy": {
+      "pre_attack_reconnaissance": false,
+      "data_staging": false,
+      "exfiltration_indicators": false,
+      "access_escalation": false,
+      "temporal_anomalies": true
+    },
+    "related_entities": [],
+    "prior_30d_mean_irs": 30.0,
+    "expected_label": "benign_anomaly"
+  }
+]

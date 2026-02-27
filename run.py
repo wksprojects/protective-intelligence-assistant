@@ -12,6 +12,7 @@ Usage:
     python run.py evaluate    Generate quantitative evaluation memo
     python run.py benchmark   Generate compact benchmark table markdown
     python run.py correlation-eval  Generate correlation precision/recall artifact
+    python run.py insider-eval  Generate insider-risk precision/recall artifact
     python run.py heartbeat   Generate source health heartbeat artifacts
     python run.py casepack    Generate incident thread case pack markdown
     python run.py demo        Load fixtures and generate demo EP artifacts
@@ -171,6 +172,9 @@ def main():
 
     elif command in ("correlation-eval", "correlation_eval", "corr-eval"):
         subprocess.run([sys.executable, "scripts/generate_correlation_eval.py"], check=True)
+
+    elif command in ("insider-eval", "insider_eval"):
+        subprocess.run([sys.executable, "scripts/generate_insider_eval.py"], check=True)
 
     elif command == "heartbeat":
         subprocess.run([sys.executable, "scripts/generate_source_health_heartbeat.py"], check=True)
