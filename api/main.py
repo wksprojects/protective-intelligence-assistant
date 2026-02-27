@@ -3,6 +3,7 @@ import logging
 import os
 import secrets
 import sys
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -42,15 +43,23 @@ def _truthy_env(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _resolve_api_key():
-    return (os.getenv("PI_API_KEY") or os.getenv("OSINT_API_KEY", "")).strip()
+# Resolve API key once at module load to avoid repeated os.getenv() per request
+_RESOLVED_API_KEY = (os.getenv("PI_API_KEY") or os.getenv("OSINT_API_KEY", "")).strip()
+_AUTH_REQUIRED = _truthy_env(os.getenv("PI_REQUIRE_API_KEY", "0")) or bool(_RESOLVED_API_KEY)
 
+if _AUTH_REQUIRED and not _RESOLVED_API_KEY:
+    logger.warning(
+        "PI_REQUIRE_API_KEY is set but no PI_API_KEY/OSINT_API_KEY configured. "
+        "All authenticated endpoints will return 503."
+    )
+
+if not _AUTH_REQUIRED:
+    logger.warning(
+        "API key authentication is DISABLED (development mode). "
+        "Set PI_API_KEY to enable authentication before deploying."
+    )
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-def _auth_required():
-    return _truthy_env(os.getenv("PI_REQUIRE_API_KEY", "0")) or bool(_resolve_api_key())
 
 
 async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)):
@@ -60,19 +69,55 @@ async def verify_api_key(api_key: Optional[str] = Security(_api_key_header)):
     When neither is set, auth is bypassed (development mode).
     When set, all mutation endpoints require a matching X-API-Key header.
     """
-    required = _auth_required()
-    expected_key = _resolve_api_key()
-    if not required:
+    if not _AUTH_REQUIRED:
         return  # Auth disabled — local development mode
-    if not expected_key:
+    if not _RESOLVED_API_KEY:
         raise HTTPException(
             status_code=503,
             detail="API key enforcement enabled but PI_API_KEY/OSINT_API_KEY is not configured.",
         )
-    if not api_key or not secrets.compare_digest(api_key, expected_key):
+    if not api_key or not secrets.compare_digest(api_key, _RESOLVED_API_KEY):
         raise HTTPException(
             status_code=403,
             detail="Invalid or missing API key. Set X-API-Key header.",
+        )
+
+
+# --- Rate Limiter for expensive endpoints ---
+class _RateLimiter:
+    """Simple in-memory token-bucket rate limiter (thread-safe)."""
+
+    def __init__(self, max_calls: int, period_seconds: float):
+        self._max_calls = max_calls
+        self._period = period_seconds
+        self._calls: list[float] = []
+        self._lock = threading.Lock()
+
+    def check(self) -> bool:
+        """Return True if the request is allowed, False if rate-limited."""
+        now = time.monotonic()
+        with self._lock:
+            self._calls = [t for t in self._calls if now - t < self._period]
+            if len(self._calls) >= self._max_calls:
+                return False
+            self._calls.append(now)
+            return True
+
+    def reset(self):
+        """Clear all tracked calls (useful for testing)."""
+        with self._lock:
+            self._calls.clear()
+
+
+# Allow max 3 scrape trigger calls per 60 seconds
+_scrape_limiter = _RateLimiter(max_calls=3, period_seconds=60.0)
+
+
+def _check_scrape_rate_limit():
+    if not _scrape_limiter.check():
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded for scrape endpoints. Try again later.",
         )
 
 
@@ -140,7 +185,8 @@ def _audit_mutation(
                 int(response_status),
                 round(float(duration_ms), 3),
                 request.headers.get("X-Analyst", "unknown"),
-                request.client.host if request.client else None,
+                request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                or (request.client.host if request.client else None),
             ),
         )
         conn.commit()
@@ -294,18 +340,20 @@ def readyz():
 @app.get("/metrics", dependencies=[Depends(verify_api_key)])
 def metrics():
     conn = get_connection()
-    total_alerts = conn.execute("SELECT COUNT(*) AS count FROM alerts").fetchone()["count"]
-    unreviewed = conn.execute("SELECT COUNT(*) AS count FROM alerts WHERE reviewed = 0").fetchone()["count"]
-    scrape_runs = conn.execute("SELECT COUNT(*) AS count FROM scrape_runs").fetchone()["count"]
-    last_scrape = conn.execute(
-        """SELECT started_at, completed_at, status, total_alerts
-        FROM scrape_runs
-        ORDER BY started_at DESC LIMIT 1"""
-    ).fetchone()
-    audit_errors = conn.execute(
-        "SELECT COUNT(*) AS count FROM audit_log WHERE status_code >= 400"
-    ).fetchone()["count"]
-    conn.close()
+    try:
+        total_alerts = conn.execute("SELECT COUNT(*) AS count FROM alerts").fetchone()["count"]
+        unreviewed = conn.execute("SELECT COUNT(*) AS count FROM alerts WHERE reviewed = 0").fetchone()["count"]
+        scrape_runs = conn.execute("SELECT COUNT(*) AS count FROM scrape_runs").fetchone()["count"]
+        last_scrape = conn.execute(
+            """SELECT started_at, completed_at, status, total_alerts
+            FROM scrape_runs
+            ORDER BY started_at DESC LIMIT 1"""
+        ).fetchone()
+        audit_errors = conn.execute(
+            "SELECT COUNT(*) AS count FROM audit_log WHERE status_code >= 400"
+        ).fetchone()["count"]
+    finally:
+        conn.close()
 
     return {
         "uptime_seconds": round(time.time() - APP_START_TIME, 3),
@@ -330,6 +378,15 @@ def get_alerts(
     limit: int = Query(default=50, le=500),
     offset: int = 0,
 ):
+    _SORT_COLUMNS = {
+        "risk_score": "a.risk_score",
+        "created_at": "a.created_at",
+        "published_at": "a.published_at",
+    }
+    safe_sort = _SORT_COLUMNS.get(sort_by)
+    if not safe_sort:
+        raise HTTPException(status_code=422, detail=f"Invalid sort_by: {sort_by}")
+
     conn = get_connection()
     query = """
         SELECT a.id, a.title, a.content, a.url, a.risk_score, a.ors_score, a.tas_score, a.severity,
@@ -354,7 +411,7 @@ def get_alerts(
         query += " AND a.risk_score >= ?"
         params.append(min_score)
 
-    query += f" ORDER BY a.{sort_by} DESC LIMIT ? OFFSET ?"
+    query += f" ORDER BY {safe_sort} DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
 
     alerts = conn.execute(query, params).fetchall()
@@ -612,6 +669,7 @@ def get_alert_iocs(alert_id: int):
 @app.post("/alerts/rescore", dependencies=[Depends(verify_api_key)])
 def trigger_rescore():
     """Re-score all unreviewed alerts with current weights and frequencies."""
+    _check_scrape_rate_limit()
     from analytics.risk_scoring import rescore_all_alerts
 
     conn = get_connection()
@@ -1140,11 +1198,11 @@ def create_protected_location(body: ProtectedLocationCreate):
         (loc_name, loc_type, body.lat, body.lon, body.radius_miles, loc_notes),
     )
     location_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.commit()
     row = conn.execute(
         "SELECT * FROM protected_locations WHERE id = ?",
         (location_id,),
     ).fetchone()
-    conn.commit()
     conn.close()
     return dict(row)
 
@@ -1240,8 +1298,8 @@ def create_disposition(alert_id: int, body: DispositionRequest):
         (alert_id, disposition_status, rationale, analyst_user),
     )
     disposition_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-    row = conn.execute("SELECT * FROM dispositions WHERE id = ?", (disposition_id,)).fetchone()
     conn.commit()
+    row = conn.execute("SELECT * FROM dispositions WHERE id = ?", (disposition_id,)).fetchone()
     conn.close()
     return dict(row)
 
@@ -1632,6 +1690,7 @@ def issue_sitrep_endpoint(sitrep_id: int):
 @app.post("/scrape/social-media", dependencies=[Depends(verify_api_key)])
 def trigger_social_media_scrape():
     """Trigger a social media monitoring run (stub: loads fixture data in demo mode)."""
+    _check_scrape_rate_limit()
     from scraper.social_media_monitor import run_social_media_monitor
 
     result = run_social_media_monitor()
@@ -1641,6 +1700,7 @@ def trigger_social_media_scrape():
 @app.post("/scrape/telegram", dependencies=[Depends(verify_api_key)])
 def trigger_telegram_scrape():
     """Trigger Telegram prototype collector (fixture-first, env-gated)."""
+    _check_scrape_rate_limit()
     from collectors.telegram import collect_telegram
 
     return {"ingested": collect_telegram(), "source": "telegram_prototype"}
@@ -1649,6 +1709,7 @@ def trigger_telegram_scrape():
 @app.post("/scrape/chans", dependencies=[Depends(verify_api_key)])
 def trigger_chans_scrape():
     """Trigger chans prototype collector (fixture-first, env-gated)."""
+    _check_scrape_rate_limit()
     from collectors.chans import collect_chans
 
     return {"ingested": collect_chans(), "source": "chans_prototype"}

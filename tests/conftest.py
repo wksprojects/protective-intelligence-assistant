@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from api.main import app
+from api.main import _scrape_limiter, app
 from database import init_db as db_init
 
 
@@ -24,6 +24,9 @@ def client(tmp_path, monkeypatch):
     db_init.seed_default_protected_locations()
     db_init.seed_default_events()
     db_init.seed_threat_actors()
+
+    # Reset rate limiter between tests so scrape endpoints are not blocked
+    _scrape_limiter.reset()
 
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client

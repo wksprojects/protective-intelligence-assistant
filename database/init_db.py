@@ -77,6 +77,9 @@ def _resolve_db_path():
 
 
 def _get_table_columns(conn, table_name):
+    # Validate table_name is a simple identifier to prevent injection
+    if not table_name or not table_name.isidentifier():
+        raise ValueError(f"Invalid table name: {table_name!r}")
     return [row["name"] for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
 
 

@@ -1,5 +1,6 @@
 """Alert correlation threads for Subject-of-Interest timelines."""
 
+import hashlib
 from collections import defaultdict
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -209,7 +210,7 @@ def build_soi_threads(
 
     try:
         alert_rows = conn.execute(
-            f"""SELECT a.id, a.title, a.content, a.url, a.matched_term, a.severity,
+            f"""SELECT a.id, a.title, a.url, a.matched_term, a.severity,
                       COALESCE(a.ors_score, a.risk_score, 0) AS ors_score,
                       COALESCE(a.tas_score, 0) AS tas_score,
                       COALESCE(a.published_at, a.created_at) AS ts,
@@ -455,7 +456,9 @@ def build_soi_threads(
 
             threads.append(
                 {
-                    "thread_id": f"soi-{cluster_ids[0]}-{len(cluster_ids)}",
+                    "thread_id": "soi-" + hashlib.sha256(
+                        ",".join(str(aid) for aid in sorted(cluster_ids)).encode()
+                    ).hexdigest()[:12],
                     "label": label,
                     "alerts_count": len(cluster_ids),
                     "sources_count": len(sources),

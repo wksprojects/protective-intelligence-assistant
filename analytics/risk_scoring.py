@@ -34,7 +34,7 @@ def compute_risk_score(keyword_weight, source_credibility, frequency_factor, rec
     Returns:
         (risk_score, severity) tuple
     """
-    recency_factor = max(0.1, 1.0 - (recency_hours / 168.0))
+    recency_factor = max(0.1, 1.0 - (max(0.0, recency_hours) / 168.0))
     raw_score = (keyword_weight * frequency_factor * source_credibility * 20.0) + (
         recency_factor * 10.0
     )
@@ -133,7 +133,9 @@ def get_frequency_factor(conn, keyword_id):
         return max(1.0, round(ratio, 2)), 0.0
 
     mean = sum(counts) / len(counts)
-    variance = sum((c - mean) ** 2 for c in counts) / len(counts)
+    # Use sample variance (Bessel's correction) for small N to avoid
+    # underestimating variance and inflating Z-scores.
+    variance = sum((c - mean) ** 2 for c in counts) / (len(counts) - 1)
     std_dev = variance**0.5
 
     if std_dev < 0.5:
@@ -225,6 +227,40 @@ def score_alert(
     return risk_score
 
 
+def _batch_keyword_weights(conn, keyword_ids):
+    """Fetch keyword weights in bulk. Returns {keyword_id: weight}."""
+    if not keyword_ids:
+        return {}
+    placeholders = ",".join("?" for _ in keyword_ids)
+    rows = conn.execute(
+        f"SELECT id, weight FROM keywords WHERE id IN ({placeholders})",
+        list(keyword_ids),
+    ).fetchall()
+    return {row["id"]: (row["weight"] if row["weight"] else 1.0) for row in rows}
+
+
+def _batch_source_credibilities(conn, source_ids):
+    """Fetch source credibilities in bulk. Returns {source_id: credibility}."""
+    if not source_ids:
+        return {}
+    placeholders = ",".join("?" for _ in source_ids)
+    rows = conn.execute(
+        f"""SELECT id, credibility_score, bayesian_alpha, bayesian_beta,
+                   true_positives, false_positives
+            FROM sources WHERE id IN ({placeholders})""",
+        list(source_ids),
+    ).fetchall()
+    result = {}
+    for row in rows:
+        alpha = row["bayesian_alpha"] if row["bayesian_alpha"] else 2.0
+        beta = row["bayesian_beta"] if row["bayesian_beta"] else 2.0
+        if (row["true_positives"] or 0) == 0 and (row["false_positives"] or 0) == 0:
+            result[row["id"]] = row["credibility_score"] if row["credibility_score"] else 0.5
+        else:
+            result[row["id"]] = round(alpha / (alpha + beta), 4)
+    return result
+
+
 def rescore_all_alerts(conn, frequency_snapshot=None):
     """
     Re-score all unreviewed alerts with current weights, Bayesian credibility,
@@ -247,6 +283,12 @@ def rescore_all_alerts(conn, frequency_snapshot=None):
         keyword_ids = list({alert["keyword_id"] for alert in alerts})
         frequency_snapshot = build_frequency_snapshot(conn, keyword_ids=keyword_ids)
 
+    # Batch-fetch keyword weights and source credibilities to avoid N+1 queries
+    all_keyword_ids = {alert["keyword_id"] for alert in alerts if alert["keyword_id"]}
+    all_source_ids = {alert["source_id"] for alert in alerts if alert["source_id"]}
+    weight_cache = _batch_keyword_weights(conn, all_keyword_ids)
+    cred_cache = _batch_source_credibilities(conn, all_source_ids)
+
     # Import locally to avoid circular module initialization:
     # ep_scoring -> risk_scoring (score_to_severity) and this path needs ep_scoring.
     from analytics.ep_scoring import compute_operational_score
@@ -254,15 +296,42 @@ def rescore_all_alerts(conn, frequency_snapshot=None):
     count = 0
     for alert in alerts:
         score_args = frequency_snapshot.get(alert["keyword_id"])
-        score_alert(
-            conn,
-            alert["id"],
-            alert["keyword_id"],
-            alert["source_id"],
-            created_at=alert["created_at"],
-            published_at=alert["published_at"],
-            frequency_override=score_args[0] if score_args else None,
-            z_score_override=score_args[1] if score_args else None,
+        freq_override = score_args[0] if score_args else None
+        z_override = score_args[1] if score_args else None
+
+        keyword_weight = weight_cache.get(alert["keyword_id"], 1.0)
+        source_credibility = cred_cache.get(alert["source_id"], 0.5)
+
+        if freq_override is not None:
+            frequency_factor = freq_override
+            z_score = z_override if z_override is not None else 0.0
+        else:
+            frequency_factor, z_score = get_frequency_factor(conn, alert["keyword_id"])
+
+        recency_factor, recency_hours = compute_recency_factor(
+            published_at=alert["published_at"], created_at=alert["created_at"]
+        )
+
+        risk_score, severity = compute_risk_score(
+            keyword_weight, source_credibility, frequency_factor, recency_hours
+        )
+        conn.execute(
+            "UPDATE alerts SET risk_score = ?, severity = ? WHERE id = ?",
+            (risk_score, severity, alert["id"]),
+        )
+        conn.execute(
+            """INSERT INTO alert_scores
+            (alert_id, keyword_weight, source_credibility, frequency_factor, z_score, recency_factor, final_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                alert["id"],
+                keyword_weight,
+                source_credibility,
+                frequency_factor,
+                z_score,
+                recency_factor,
+                risk_score,
+            ),
         )
         compute_operational_score(conn, alert["id"])
         count += 1

@@ -86,6 +86,7 @@ def _build_run_frequency_snapshot():
 # Concurrency control: limit parallel requests to avoid overwhelming targets
 _MAX_CONCURRENT_REQUESTS = 10
 _semaphore = None
+_semaphore_loop = None
 _ASYNC_FETCH_RETRIES = 2
 _ASYNC_FETCH_TIMEOUT_SECONDS = 25
 _RSS_FETCH_HEADERS = {
@@ -95,9 +96,11 @@ _RSS_FETCH_HEADERS = {
 
 
 def _get_semaphore():
-    global _semaphore
-    if _semaphore is None:
+    global _semaphore, _semaphore_loop
+    current_loop = asyncio.get_running_loop()
+    if _semaphore is None or _semaphore_loop is not current_loop:
         _semaphore = asyncio.Semaphore(_MAX_CONCURRENT_REQUESTS)
+        _semaphore_loop = current_loop
     return _semaphore
 
 

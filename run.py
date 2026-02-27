@@ -71,7 +71,17 @@ def purge_demo_content():
             GROUP BY a.keyword_id, date(COALESCE(a.published_at, a.created_at))"""
         )
 
-        deleted_reports = conn.execute("DELETE FROM intelligence_reports").rowcount
+        # Only delete intelligence reports generated on dates where ALL alerts
+        # came from demo sources (i.e., no real alerts exist for that date).
+        deleted_reports = conn.execute(
+            """DELETE FROM intelligence_reports
+            WHERE report_date NOT IN (
+                SELECT DISTINCT date(COALESCE(a.published_at, a.created_at))
+                FROM alerts a
+                LEFT JOIN sources s ON s.id = a.source_id
+                WHERE COALESCE(s.source_type, '') != 'demo'
+            )"""
+        ).rowcount
         conn.commit()
     finally:
         conn.close()

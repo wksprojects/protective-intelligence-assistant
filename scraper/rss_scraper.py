@@ -5,6 +5,17 @@ from email.utils import parsedate_to_datetime
 
 import feedparser
 
+
+def _sanitize_html(text):
+    """Strip HTML tags and decode entities to prevent stored XSS."""
+    if not text:
+        return ""
+    # Strip HTML tags
+    cleaned = re.sub(r"<[^>]+>", " ", text)
+    # Collapse whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
 from analytics.dedup import check_duplicate
 from analytics.ep_pipeline import process_ep_signals
 from analytics.entity_extraction import extract_and_store_alert_entities
@@ -130,8 +141,9 @@ def run_rss_scraper(frequency_snapshot=None):
 
             for keyword in matches:
                 if not alert_exists(conn, source["id"], keyword["id"], entry["url"]):
+                    sanitized_content = _sanitize_html(entry["content"])
                     content_hash, duplicate_of = check_duplicate(
-                        conn, entry["title"], entry["content"]
+                        conn, entry["title"], sanitized_content
                     )
                     conn.execute(
                         """INSERT INTO alerts
@@ -142,7 +154,7 @@ def run_rss_scraper(frequency_snapshot=None):
                             source["id"],
                             keyword["id"],
                             entry["title"],
-                            entry["content"][:2000],
+                            sanitized_content[:2000],
                             entry["url"],
                             keyword["term"],
                             content_hash,
@@ -165,13 +177,13 @@ def run_rss_scraper(frequency_snapshot=None):
                             z_score_override=score_args[1] if score_args else None,
                         )
                         extract_and_store_alert_entities(
-                            conn, alert_id, f"{entry['title']}\n{entry['content']}"
+                            conn, alert_id, f"{entry['title']}\n{sanitized_content}"
                         )
                         process_ep_signals(
                             conn,
                             alert_id=alert_id,
                             title=entry["title"],
-                            content=entry["content"],
+                            content=sanitized_content,
                             keyword_category=keyword.get("category"),
                             baseline_score=baseline_score,
                         )

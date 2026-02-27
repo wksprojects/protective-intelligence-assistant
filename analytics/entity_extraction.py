@@ -33,6 +33,35 @@ IOC_PATTERNS = {
 
 IOC_TYPES = tuple(IOC_PATTERNS.keys())
 
+# Common English words that look like TLDs — filter out false-positive "domains"
+_KNOWN_VALID_TLDS = {
+    "com", "net", "org", "edu", "gov", "mil", "int", "io", "co", "us", "uk",
+    "de", "fr", "jp", "cn", "ru", "br", "in", "au", "ca", "nl", "se", "ch",
+    "es", "it", "kr", "mx", "za", "nz", "info", "biz", "pro", "name",
+    "mobi", "tel", "asia", "cat", "coop", "jobs", "travel", "museum", "aero",
+    "xyz", "online", "site", "tech", "store", "app", "dev", "cloud",
+    "security", "network", "systems", "digital", "global", "world",
+    "email", "link", "click", "top", "live", "news", "media",
+}
+
+
+def _is_valid_domain(value):
+    """Reject common false-positive domains by checking TLD and structure."""
+    parts = value.lower().rsplit(".", 1)
+    if len(parts) < 2:
+        return False
+    tld = parts[1]
+    # Require a recognized TLD
+    if tld not in _KNOWN_VALID_TLDS:
+        return False
+    # Reject single-word "domains" like "example.com" where the host part is too short
+    # to be meaningful — require at least one dot in the host portion (i.e., subdomain.domain.tld)
+    # or the host+tld total length must be >= 5 chars
+    host = parts[0]
+    if len(host) < 2:
+        return False
+    return True
+
 
 def _normalize_value(entity_type, value):
     normalized = value.strip().strip(".,);")
@@ -59,8 +88,13 @@ def extract_iocs(text):
             if entity_type == "domain" and _in_url_span(match.start(), match.end()):
                 continue
             value = _normalize_value(entity_type, match.group(0))
+            if not value:
+                continue
+            # Validate domain candidates against known TLDs
+            if entity_type == "domain" and not _is_valid_domain(value):
+                continue
             key = (entity_type, value)
-            if not value or key in seen:
+            if key in seen:
                 continue
             seen.add(key)
             findings.append({"entity_type": entity_type, "entity_value": value})
