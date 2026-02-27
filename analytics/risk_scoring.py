@@ -16,9 +16,9 @@ Severity derivation:
   0-39   = low
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
-from analytics.utils import compute_recency_factor, parse_timestamp, utcnow
+from analytics.utils import compute_recency_factor, utcnow
 
 
 def compute_risk_score(keyword_weight, source_credibility, frequency_factor, recency_hours):

@@ -4,7 +4,6 @@ import json
 from datetime import timedelta
 
 from analytics.utils import utcnow
-from database.init_db import get_connection
 
 
 # Pathway indicator weights for composite score (sum to 1.0)

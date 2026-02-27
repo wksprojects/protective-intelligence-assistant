@@ -1,5 +1,5 @@
 import math
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from analytics.entity_extraction import extract_and_store_alert_entities
 from analytics.utils import utcnow
@@ -223,7 +223,7 @@ def test_graph_endpoint_returns_nodes_and_edges(client):
         source_id=source_id,
         keyword_id=keyword_id,
         title="Graph seed alert",
-        content="OpenAI observed CVE-2026-99999 from 8.8.8.8",
+        content="Acme observed CVE-2026-99999 from 8.8.8.8",
         url="https://example.com/graph-seed",
         risk_score=96.0,
     )
@@ -231,7 +231,7 @@ def test_graph_endpoint_returns_nodes_and_edges(client):
     extract_and_store_alert_artifacts(
         conn,
         alert_id,
-        "Graph seed alert\nOpenAI observed CVE-2026-99999 from 8.8.8.8",
+        "Graph seed alert\nAcme observed CVE-2026-99999 from 8.8.8.8",
     )
     conn.commit()
     conn.close()

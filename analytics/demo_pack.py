@@ -1,7 +1,6 @@
 """Demo artifact generator for EP workflow showcase."""
 
 import json
-import os
 from pathlib import Path
 
 from analytics.entity_extraction import extract_and_store_alert_entities

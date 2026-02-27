@@ -25,10 +25,9 @@ from analytics.behavioral_assessment import (
     compute_pathway_score,
     determine_escalation_trend,
     score_to_risk_tier,
-    upsert_assessment,
 )
-from analytics.location_enrichment import _haversine_miles, update_alert_proximity
-from analytics.poi_matching import get_active_poi_aliases, match_pois, store_poi_hits
+from analytics.location_enrichment import update_alert_proximity
+from analytics.poi_matching import get_active_poi_aliases, match_pois
 from analytics.sitrep import generate_sitrep_for_poi_escalation
 from analytics.tas_assessment import (
     build_escalation_explanation,

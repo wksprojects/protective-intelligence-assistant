@@ -5,7 +5,7 @@ Centralizes timestamp parsing and recency computation to avoid
 divergent copies across modules.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 
 def utcnow():

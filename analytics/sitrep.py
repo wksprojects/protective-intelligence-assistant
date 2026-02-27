@@ -13,7 +13,7 @@ import yaml
 
 from analytics.governance import redact_text
 from analytics.utils import utcnow
-from database.init_db import get_connection, WATCHLIST_CONFIG_PATH
+from database.init_db import WATCHLIST_CONFIG_PATH
 
 
 def _load_escalation_tiers():
