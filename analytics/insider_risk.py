@@ -232,6 +232,7 @@ def score_insider_event(event: dict) -> dict:
         "subject_id": str(event.get("subject_id") or "").strip(),
         "subject_name": str(event.get("subject_name") or "").strip(),
         "subject_handle": str(event.get("subject_handle") or "").strip(),
+        "device_id": str(event.get("device_id") or "").strip(),
         "event_ts": str(event.get("event_ts") or "").strip(),
         "expected_label": str(event.get("expected_label") or "").strip().lower(),
         "signals": signals,

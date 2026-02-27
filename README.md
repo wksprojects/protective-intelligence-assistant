@@ -1,5 +1,8 @@
 # Protective Intelligence Assistant
 
+[![CI](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml)
+![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
+
 Automated protective-intelligence analysis via cross-domain correlation across cyber, physical, and human-behavior signals.
 
 The platform ingests open-source signals, links related activity into incident threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
@@ -9,21 +12,31 @@ Quant hook: implements a multi-weighted scoring engine for cross-platform entity
 ## Headline Metrics (Latest Local Run - February 27, 2026)
 
 - Correlation linkage quality on hand-labeled scenarios: **Precision 0.8750 / Recall 0.8750 / F1 0.8750** (`make correlation-eval`).
-- Insider-risk fixture evaluation (threshold 55.0): **Precision 1.0000 / Recall 1.0000 / F1 1.0000** (`make insider-eval`).
-- Supply-chain scaffold coverage: **6 vendor profiles** scored across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
+- Insider-risk fixture evaluation (n=10, threshold 55.0): **Precision 1.0000 / Recall 1.0000 / F1 1.0000** (`make insider-eval`).
+- Supply-chain fixture evaluation (n=6, threshold 45.0): **Precision 1.0000 / Recall 0.8000 / F1 0.8889** (`make supplychain-eval`).
+- Supply-chain scaffold coverage: **6 vendor profiles** across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
 - Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
-- Engineering verification: **93 automated tests passing** (`pytest -q`).
+- Engineering verification: **96 automated tests passing** (`pytest -q`).
+
+Note: insider/supply-chain metrics above are fixture benchmark scores, not claims of field production performance.
 
 ## What This Project Demonstrates
 
-- Protective intelligence workflow design, not just alert scraping.
-- Quantitative triage with explainable scoring (ORS, TAS, uncertainty intervals).
-- Correlation logic that reduces analyst noise by clustering related signals into Subject of Interest (SOI) threads across cyber, physical, and human-behavior inputs.
-- Insider threat detection via fixture-driven UEBA-style telemetry and explainable Insider Risk Score (IRS).
-- Supply chain risk assessment scaffold for third-party/vendor exposure prioritization.
-- Operational reliability patterns (source health, fail streaks, auto-disable of dead feeds).
-- High-consequence uptime posture: heartbeat snapshots + append-only health logs to surface silent collector failures.
-- Production-minded API, auditability, and environment-gated collectors.
+### JD Evidence Map (90-second scan)
+
+| JD Theme | Evidence in Repo |
+|---|---|
+| Insider investigations | `collectors/insider_telemetry.py`, `GET /analytics/insider-risk`, `make insider-eval` |
+| Third-party / supply-chain risk | `collectors/supply_chain.py`, `GET /analytics/supply-chain-risk`, `make supplychain-eval` |
+| Cross-domain convergence (cyber + physical + human) | SOI threading over `user_id` / `device_id` / `vendor_id` + network entities |
+| Detection to analyst action | Correlated threads + scored outputs + casepack + SITREP endpoints |
+| Operational rigor and defensibility | source-health telemetry, audit log, explainable reason codes, reproducible eval artifacts |
+
+### Engineering Signals
+
+- Quantitative triage with explainable scoring (ORS, TAS, IRS, uncertainty intervals).
+- Correlation logic that reduces analyst noise by clustering related signals into SOI threads.
+- Environment-gated and policy-aware collection posture with fixture-first modules for sensitive domains.
 
 ## Current Status
 
@@ -160,7 +173,7 @@ Primary linkage signals:
 
 - shared actor handle
 - shared POI hit
-- shared non-actor entities (`domain`, `ipv4`, `url`)
+- shared non-actor entities (`domain`, `ipv4`, `url`, `user_id`, `device_id`, `vendor_id`)
 - matched-term temporal overlap
 - source fingerprint overlap
 - cross-source corroboration bonus
@@ -194,6 +207,20 @@ pip install -r requirements.txt
 make clean && make init && make scrape
 ```
 
+### 90-Second Reviewer Path
+
+```bash
+pip install -r requirements.txt
+make demo
+make casepack
+```
+
+Expected artifacts:
+
+- `docs/demo_daily_report.md`
+- `docs/demo_travel_brief.md`
+- `docs/incident_thread_casepack.md`
+
 Start services:
 
 ```bash
@@ -218,7 +245,7 @@ make casepack
 
 `make casepack` runs in an isolated temporary database so it does not modify your operational/local alert corpus.
 
-Generate a compact benchmark table for portfolio/interview use:
+Generate a compact benchmark table artifact:
 
 ```bash
 make benchmark
@@ -236,6 +263,12 @@ Generate insider-risk precision/recall metrics:
 make insider-eval
 ```
 
+Generate supply-chain precision/recall metrics:
+
+```bash
+make supplychain-eval
+```
+
 Generate an operational source-health heartbeat snapshot + append-only log:
 
 ```bash
@@ -250,6 +283,12 @@ Prototype and high-risk collectors are disabled by default.
 - `PI_ENABLE_CHANS_COLLECTOR=1` enables chans prototype collector.
 - `PI_ENABLE_SUPPLY_CHAIN=1` enables supply-chain fixture scaffold collector.
 - `PI_ENABLE_DARKWEB_COLLECTOR=1` enables dark-web scaffold path (still non-operational by design).
+
+Safety defaults and optics:
+
+- Insider and supply-chain modules are fixture-first and synthetic by default.
+- No real HR systems, private communications content, or production identity datasets are required for demo flows.
+- High-risk collection paths remain explicitly opt-in via environment gating.
 
 Source reliability controls:
 
@@ -294,6 +333,51 @@ Generated case-pack artifact:
 
 - `docs/incident_thread_casepack.md`
 
+## Endpoint Output Shapes
+
+`GET /analytics/insider-risk` returns:
+
+```json
+[
+  {
+    "subject_id": "EMP-7415",
+    "irs_score": 73.5,
+    "risk_tier": "HIGH",
+    "reason_codes": ["cumulative_risk_acceleration", "shared_user_id"],
+    "signal_breakdown": {"access_pattern_deviation": 0.71},
+    "taxonomy_hits": ["data_staging", "exfiltration_indicators"]
+  }
+]
+```
+
+`GET /analytics/supply-chain-risk` returns:
+
+```json
+[
+  {
+    "profile_id": "sc-004",
+    "vendor_name": "Aster Cloud Analytics",
+    "vendor_risk_score": 83.3,
+    "risk_tier": "HIGH",
+    "reason_codes": ["single_point_of_failure", "privilege_scope_broad"],
+    "factor_breakdown": {"geographic_risk": 0.65}
+  }
+]
+```
+
+`GET /analytics/soi-threads` returns:
+
+```json
+[
+  {
+    "thread_id": "soi-...",
+    "source_types": ["insider", "rss", "supply_chain"],
+    "reason_codes": ["shared_user_id", "shared_vendor_id", "cross_source"],
+    "pair_evidence": [{"left_alert_id": 1, "right_alert_id": 2, "score": 0.74}]
+  }
+]
+```
+
 ## Security and Data Handling Disclosure
 
 ### API Key Handling
@@ -331,6 +415,8 @@ Output:
 - `docs/evaluation_memo.md`
 - `docs/benchmark_table.md` (via `make benchmark`)
 - `docs/correlation_eval.md` (via `make correlation-eval`; dataset includes ambiguous/near-miss cases to prevent inflated metrics)
+- `docs/insider_eval.md` (via `make insider-eval`)
+- `docs/supply_chain_eval.md` (via `make supplychain-eval`)
 
 Current repo also includes:
 
@@ -339,6 +425,7 @@ Current repo also includes:
 - precision/recall analytics endpoint (`GET /analytics/evaluation`)
 - correlation-engine pairwise eval on hand-labeled cases (`fixtures/correlation_eval_cases.json`)
 - insider-risk eval on hand-labeled behavioral fixtures (`fixtures/insider_scenarios.json`)
+- supply-chain eval on hand-labeled vendor fixtures (`fixtures/supply_chain_scenarios.json`)
 - benchmark index and reproducibility notes (`benchmarks/README.md`)
 
 ## Operational Health & Observability
@@ -407,7 +494,7 @@ Incremental modularization is now in place:
 python -m pytest tests/ -v
 ```
 
-Current suite status: 93 passing tests.
+Current suite status: 96 passing tests.
 
 ## Legal and Operational Note
 

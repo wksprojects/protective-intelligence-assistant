@@ -152,11 +152,24 @@ def _upsert_alert_entities(conn, alert_id, scored_event):
             VALUES (?, 'insider_subject', ?, CURRENT_TIMESTAMP)""",
             (alert_id, subject_id),
         )
+        conn.execute(
+            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            VALUES (?, 'user_id', ?, CURRENT_TIMESTAMP)""",
+            (alert_id, subject_id),
+        )
+
+    device_id = str(scored_event.get("device_id") or "").strip().lower()
+    if device_id:
+        conn.execute(
+            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            VALUES (?, 'device_id', ?, CURRENT_TIMESTAMP)""",
+            (alert_id, device_id),
+        )
 
     for entity in scored_event.get("related_entities") or []:
         entity_type = str(entity.get("entity_type") or "").strip().lower()
         entity_value = str(entity.get("entity_value") or "").strip().lower()
-        if entity_type not in {"domain", "ipv4", "url", "email"} or not entity_value:
+        if entity_type not in {"domain", "ipv4", "url", "email", "user_id", "device_id", "vendor_id"} or not entity_value:
             continue
         conn.execute(
             """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)

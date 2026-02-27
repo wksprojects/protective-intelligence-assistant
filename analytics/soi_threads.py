@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from analytics.utils import parse_timestamp, utcnow
 from database.init_db import get_connection
 
-_SHARED_ENTITY_TYPES = {"actor_handle", "domain", "ipv4", "url"}
+_SHARED_ENTITY_TYPES = {"actor_handle", "domain", "ipv4", "url", "user_id", "device_id", "vendor_id"}
 _MAX_PAIR_CHECKS_PER_GROUP = 25000
 _MIN_PAIR_LINK_SCORE = 0.35
 
@@ -16,12 +16,24 @@ _REASON_WEIGHTS = {
     "shared_actor_handle": 0.55,
     "shared_poi": 0.5,
     "shared_entity": 0.45,
+    "shared_user_id": 0.5,
+    "shared_device_id": 0.48,
+    "shared_vendor_id": 0.48,
     "matched_term_temporal": 0.2,
     "shared_source_fingerprint": 0.15,
     "cross_source": 0.1,
     "tight_temporal": 0.1,
     "linguistic_overlap_high": 0.1,
     "linguistic_overlap_medium": 0.05,
+}
+
+_ENTITY_REASON_CODE = {
+    "domain": "shared_entity",
+    "ipv4": "shared_entity",
+    "url": "shared_entity",
+    "user_id": "shared_user_id",
+    "device_id": "shared_device_id",
+    "vendor_id": "shared_vendor_id",
 }
 
 
@@ -280,7 +292,7 @@ def build_soi_threads(
             alert_ids + sorted(_SHARED_ENTITY_TYPES),
         ).fetchall()
 
-        entity_groups = defaultdict(set)
+        entity_groups_by_reason = defaultdict(lambda: defaultdict(set))
         actor_groups = defaultdict(set)
         for row in entity_rows:
             entity_type = row["entity_type"]
@@ -291,7 +303,8 @@ def build_soi_threads(
             if entity_type == "actor_handle":
                 actor_groups[value].add(alert_id)
             else:
-                entity_groups[(entity_type, value)].add(alert_id)
+                reason_code = _ENTITY_REASON_CODE.get(entity_type, "shared_entity")
+                entity_groups_by_reason[reason_code][(entity_type, value)].add(alert_id)
 
         _connect_pairs(
             uf,
@@ -303,16 +316,17 @@ def build_soi_threads(
             pair_scores,
             pair_reasons,
         )
-        _connect_pairs(
-            uf,
-            alerts_by_id,
-            entity_groups,
-            safe_window_hours,
-            "shared_entity",
-            _REASON_WEIGHTS["shared_entity"],
-            pair_scores,
-            pair_reasons,
-        )
+        for reason_code, grouped_values in entity_groups_by_reason.items():
+            _connect_pairs(
+                uf,
+                alerts_by_id,
+                grouped_values,
+                safe_window_hours,
+                reason_code,
+                _REASON_WEIGHTS.get(reason_code, _REASON_WEIGHTS["shared_entity"]),
+                pair_scores,
+                pair_reasons,
+            )
 
         keyword_groups = defaultdict(set)
         source_fp_groups = defaultdict(set)

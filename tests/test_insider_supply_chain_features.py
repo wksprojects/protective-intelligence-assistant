@@ -145,3 +145,68 @@ def test_insider_threads_converge_with_external_signal(client):
                 matched = True
                 break
     assert matched
+
+
+def test_soi_threads_link_user_and_vendor_entities(client, monkeypatch):
+    insider_ingest = client.post("/scrape/insider")
+    assert insider_ingest.status_code == 200
+    assert insider_ingest.json()["ingested"] >= 1
+
+    monkeypatch.setenv("PI_ENABLE_SUPPLY_CHAIN", "1")
+    supply_ingest = client.post("/scrape/supply-chain")
+    assert supply_ingest.status_code == 200
+    assert supply_ingest.json()["ingested"] >= 1
+
+    conn = get_connection()
+    user_row = conn.execute(
+        """SELECT ae.entity_value
+        FROM alert_entities ae
+        JOIN alerts a ON a.id = ae.alert_id
+        JOIN sources s ON s.id = a.source_id
+        WHERE s.source_type = 'insider'
+          AND ae.entity_type = 'user_id'
+        ORDER BY ae.id
+        LIMIT 1"""
+    ).fetchone()
+    assert user_row is not None
+
+    rss_source_id = conn.execute(
+        "SELECT id FROM sources WHERE source_type = 'rss' ORDER BY id LIMIT 1"
+    ).fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()["id"]
+    alert_id = _insert_alert(
+        conn,
+        source_id=rss_source_id,
+        keyword_id=keyword_id,
+        title="External event tied to insider user identifier",
+        url="https://example.com/insider-user-id-cross-domain",
+        matched_term="death threat",
+        published_at=(utcnow() - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S"),
+    )
+    conn.execute(
+        """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+        VALUES (?, 'user_id', ?, CURRENT_TIMESTAMP)""",
+        (alert_id, user_row["entity_value"]),
+    )
+    conn.commit()
+    conn.close()
+
+    response = client.get(
+        "/analytics/soi-threads",
+        params={"days": 7, "window_hours": 72, "min_cluster_size": 2},
+    )
+    assert response.status_code == 200
+    threads = response.json()
+
+    user_linked = False
+    vendor_linked = False
+    for thread in threads:
+        reasons = set(thread.get("reason_codes") or [])
+        source_types = set(thread.get("source_types") or [])
+        if {"insider", "rss"}.issubset(source_types) and "shared_user_id" in reasons:
+            user_linked = True
+        if {"insider", "supply_chain"}.issubset(source_types) and "shared_vendor_id" in reasons:
+            vendor_linked = True
+
+    assert user_linked
+    assert vendor_linked

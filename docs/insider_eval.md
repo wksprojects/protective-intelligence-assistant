@@ -1,6 +1,6 @@
 # Insider Risk Evaluation
 
-Generated: 2026-02-27 20:41:13 UTC
+Generated: 2026-02-27 21:06:34 UTC
 Dataset: `fixtures/insider_scenarios.json`
 Threshold: **55.0**
 Cases: **10** (expected positives: **5**)

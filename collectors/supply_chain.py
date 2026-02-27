@@ -150,6 +150,14 @@ def _upsert_alert_entities(conn, alert_id, scored):
             (alert_id, vendor_domain),
         )
 
+    vendor_id = str(scored.get("profile_id") or "").strip().lower()
+    if vendor_id:
+        conn.execute(
+            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            VALUES (?, 'vendor_id', ?, CURRENT_TIMESTAMP)""",
+            (alert_id, vendor_id),
+        )
+
     vendor_name = str(scored.get("vendor_name") or "").strip().lower()
     if vendor_name:
         conn.execute(
