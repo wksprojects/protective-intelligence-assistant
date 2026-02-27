@@ -1,4 +1,4 @@
-.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark correlation-eval insider-eval supplychain-eval heartbeat casepack screenshots clean help
+.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark correlation-eval insider-eval supplychain-eval supply-chain-eval supply_chain_eval heartbeat casepack screenshots clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -57,6 +57,10 @@ insider-eval: ## Evaluate insider-risk scorer precision/recall on labeled fixtur
 
 supplychain-eval: ## Evaluate supply-chain risk scaffold precision/recall on labeled fixtures
 	python scripts/generate_supply_chain_eval.py
+
+supply-chain-eval: supplychain-eval ## Alias: hyphenated supply-chain eval target
+
+supply_chain_eval: supplychain-eval ## Alias: underscored supply-chain eval target
 
 heartbeat: ## Generate source health heartbeat snapshot + append-only log
 	python scripts/generate_source_health_heartbeat.py
