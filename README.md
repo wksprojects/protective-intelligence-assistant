@@ -121,6 +121,10 @@ API output snapshots (for reproducible endpoint evidence):
 |---|---|
 | ![Insider Risk Endpoint](docs/screenshots/insider_risk_endpoint.png) | ![Supply Chain Risk Endpoint](docs/screenshots/supply_chain_risk_endpoint.png) |
 
+Dashboard investigation queues panel:
+
+![Dashboard Investigation Queues](docs/screenshots/investigation_queues_panel.png)
+
 Cross-domain convergence output:
 
 ![Cross-Domain Convergence](docs/screenshots/cross_domain_convergence.png)
@@ -313,7 +317,7 @@ Generate an analyst-ready investigation thread case pack:
 make casepack
 ```
 
-Refresh README screenshots (insider + supply chain + convergence):
+Refresh README screenshots (insider + supply chain + convergence + investigation queues):
 
 ```bash
 make screenshots

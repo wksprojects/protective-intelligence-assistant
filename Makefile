@@ -72,7 +72,7 @@ heartbeat: ## Generate source health heartbeat snapshot + append-only log
 casepack: ## Generate incident thread analyst case pack
 	python scripts/generate_incident_thread_casepack.py
 
-screenshots: ## Generate README screenshot artifacts (insider/supply-chain/convergence)
+screenshots: ## Generate README screenshot artifacts (insider/supply-chain/convergence/queues)
 	python scripts/generate_readme_screenshots.py
 
 clean: ## Remove database and cached artifacts

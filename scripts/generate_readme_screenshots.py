@@ -1,4 +1,4 @@
-"""Generate README screenshot artifacts for insider/supply-chain/convergence outputs."""
+"""Generate README screenshot artifacts for insider/supply-chain/convergence/queue outputs."""
 
 from __future__ import annotations
 
@@ -37,6 +37,7 @@ OUT_DIR = REPO_ROOT / "docs" / "screenshots"
 INSIDER_IMG = OUT_DIR / "insider_risk_endpoint.png"
 SUPPLY_IMG = OUT_DIR / "supply_chain_risk_endpoint.png"
 THREAD_IMG = OUT_DIR / "cross_domain_convergence.png"
+QUEUE_IMG = OUT_DIR / "investigation_queues_panel.png"
 
 
 def _load_font(size):
@@ -216,7 +217,39 @@ def _build_payloads():
         ],
         "pair_evidence": (thread_row.get("pair_evidence") or [])[:2],
     }
-    return insider_payload, supply_payload, convergence_payload
+    queue_payload = {
+        "dashboard_panel": "Intelligence Analysis > Investigation Queues",
+        "insider_queue": [
+            {
+                "subject_id": row.get("subject_id"),
+                "irs_score": row.get("irs_score"),
+                "risk_tier": row.get("risk_tier"),
+                "reason_codes": (row.get("reason_codes") or [])[:3],
+            }
+            for row in insider_rows[:3]
+        ],
+        "third_party_queue": [
+            {
+                "profile_id": row.get("profile_id"),
+                "vendor_name": row.get("vendor_name"),
+                "vendor_risk_score": row.get("vendor_risk_score"),
+                "risk_tier": row.get("risk_tier"),
+                "reason_codes": (row.get("reason_codes") or [])[:3],
+            }
+            for row in supply_rows[:3]
+        ],
+        "investigation_threads": [
+            {
+                "thread_id": row.get("thread_id"),
+                "source_types": row.get("source_types"),
+                "alerts_count": row.get("alerts_count"),
+                "thread_confidence": row.get("thread_confidence"),
+                "reason_codes": (row.get("reason_codes") or [])[:4],
+            }
+            for row in threads[:3]
+        ],
+    }
+    return insider_payload, supply_payload, convergence_payload, queue_payload
 
 
 def _render_json_snapshot(path, title, subtitle, payload):
@@ -259,7 +292,7 @@ def main():
         with TemporaryDirectory() as tmp_dir:
             db_path = Path(tmp_dir) / "screenshot_seed.db"
             _seed_temp_db(db_path)
-            insider_payload, supply_payload, convergence_payload = _build_payloads()
+            insider_payload, supply_payload, convergence_payload, queue_payload = _build_payloads()
 
         _render_json_snapshot(
             INSIDER_IMG,
@@ -279,6 +312,12 @@ def main():
             "Thread evidence linking insider, external, and vendor signals.",
             convergence_payload,
         )
+        _render_json_snapshot(
+            QUEUE_IMG,
+            "Dashboard Investigation Queues",
+            "Insider, third-party, and investigation thread panels in one view.",
+            queue_payload,
+        )
     finally:
         db_init.DB_PATH = original_db_path
 
@@ -286,6 +325,7 @@ def main():
     print(f"  - {INSIDER_IMG}")
     print(f"  - {SUPPLY_IMG}")
     print(f"  - {THREAD_IMG}")
+    print(f"  - {QUEUE_IMG}")
 
 
 if __name__ == "__main__":
