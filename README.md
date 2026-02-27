@@ -22,9 +22,9 @@ Note: insider/supply-chain metrics above are fixture benchmark scores, not claim
 
 ## What This Project Demonstrates
 
-### JD Evidence Map (90-second scan)
+### Capability Map (90-second scan)
 
-| JD Theme | Evidence in Repo |
+| Capability | Evidence in Repo |
 |---|---|
 | Insider investigations | `collectors/insider_telemetry.py`, `GET /analytics/insider-risk`, `make insider-eval` |
 | Third-party / supply-chain risk | `collectors/supply_chain.py`, `GET /analytics/supply-chain-risk`, `make supplychain-eval` |
@@ -37,6 +37,19 @@ Note: insider/supply-chain metrics above are fixture benchmark scores, not claim
 - Quantitative triage with explainable scoring (ORS, TAS, IRS, uncertainty intervals).
 - Correlation logic that reduces analyst noise by clustering related signals into SOI threads.
 - Environment-gated and policy-aware collection posture with fixture-first modules for sensitive domains.
+
+### Real-World Ops Mapping
+
+| Enterprise Function | Repo Mapping (Current) | Integration Seam (Next Step) |
+|---|---|---|
+| EDR telemetry triage | Insider telemetry collector normalizes endpoint/user behavior into explainable IRS factors and reason codes. | Replace fixture loader in `collectors/insider_telemetry.py` with endpoint event ingestion adapter. |
+| DLP/exfil monitoring | Data movement signals (`download_gb`, USB writes, cloud upload volume) are scored as exfiltration indicators. | Feed DLP transfer events into insider fixture schema and preserve event IDs for traceability. |
+| UEBA risk accumulation | Multi-signal compounding + cumulative acceleration model in `analytics/insider_risk.py`. | Persist rolling baselines by subject/device from production identity/behavior streams. |
+| SIEM correlation | SOI threader links cross-domain entities (`user_id`, `device_id`, `vendor_id`, `domain`, `ipv4`, `url`) with pairwise evidence. | Ingest SIEM alert IDs as entity/provenance fields for pivoting and back-reference. |
+| SOAR-ready outputs | API endpoints expose scored queues with reason codes (`/analytics/insider-risk`, `/analytics/supply-chain-risk`, `/analytics/soi-threads`). | Add webhook/queue publisher that emits high-tier events to orchestration playbooks. |
+| Evidence handling workflow | Casepack artifact captures provenance keys, pairwise linkage evidence, source timeline, and risk context. | Add signed evidence manifest (hash + source timestamp + collector run ID) for chain-of-custody reporting. |
+
+Compact workflow (implemented): detect -> score -> correlate -> produce casepack/SITREP-ready context -> analyst disposition.
 
 ## Current Status
 
