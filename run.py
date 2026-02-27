@@ -16,6 +16,7 @@ Usage:
     python run.py supplychain-eval  Generate supply-chain precision/recall artifact
     python run.py heartbeat   Generate source health heartbeat artifacts
     python run.py casepack    Generate incident thread case pack markdown
+    python run.py screenshots Generate README screenshot artifacts
     python run.py demo        Load fixtures and generate demo EP artifacts
     python run.py all         Start API + Dashboard (requires separate terminal for each)
 """
@@ -185,6 +186,9 @@ def main():
 
     elif command == "casepack":
         subprocess.run([sys.executable, "scripts/generate_incident_thread_casepack.py"], check=True)
+
+    elif command in ("screenshots", "screenshot"):
+        subprocess.run([sys.executable, "scripts/generate_readme_screenshots.py"], check=True)
 
     elif command == "demo":
         from analytics.demo_pack import run_demo_pack

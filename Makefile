@@ -1,4 +1,4 @@
-.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark correlation-eval insider-eval supplychain-eval heartbeat casepack clean help
+.PHONY: demo init sync scrape api dashboard test smoke purge-demo evaluate benchmark correlation-eval insider-eval supplychain-eval heartbeat casepack screenshots clean help
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -63,6 +63,9 @@ heartbeat: ## Generate source health heartbeat snapshot + append-only log
 
 casepack: ## Generate incident thread analyst case pack
 	python scripts/generate_incident_thread_casepack.py
+
+screenshots: ## Generate README screenshot artifacts (insider/supply-chain/convergence)
+	python scripts/generate_readme_screenshots.py
 
 clean: ## Remove database and cached artifacts
 	rm -f database/protective_intel.db

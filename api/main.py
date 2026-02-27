@@ -273,6 +273,18 @@ class DispositionRequest(BaseModel):
     user: Optional[str] = "analyst"
 
 
+class InsiderIngestRequest(BaseModel):
+    events: list[dict]
+    source_name: Optional[str] = None
+    source_url: Optional[str] = None
+
+
+class SupplyChainIngestRequest(BaseModel):
+    profiles: list[dict]
+    source_name: Optional[str] = None
+    source_url: Optional[str] = None
+
+
 class AlertResponse(BaseModel):
     id: int
     title: str
@@ -1753,6 +1765,34 @@ def trigger_supply_chain_scrape():
     from collectors.supply_chain import collect_supply_chain
 
     return {"ingested": collect_supply_chain(), "source": "supply_chain_scaffold"}
+
+
+@app.post("/ingest/insider-events", dependencies=[Depends(verify_api_key)])
+def ingest_insider_events_endpoint(request: InsiderIngestRequest):
+    """Ingest insider telemetry payloads (UEBA-style) and refresh IRS assessments."""
+    from collectors.insider_telemetry import INGEST_SOURCE_NAME, ingest_insider_events
+
+    stats = ingest_insider_events(
+        request.events,
+        source_name=request.source_name or INGEST_SOURCE_NAME,
+        source_url=request.source_url or "insider://ingest-api",
+        observer_name="insider_ingest_api",
+    )
+    return {"source": "insider_ingest_api", **stats}
+
+
+@app.post("/ingest/supply-chain-profiles", dependencies=[Depends(verify_api_key)])
+def ingest_supply_chain_profiles_endpoint(request: SupplyChainIngestRequest):
+    """Ingest vendor profile payloads and refresh supply-chain risk assessments."""
+    from collectors.supply_chain import INGEST_SOURCE_NAME, ingest_supply_chain_profiles
+
+    stats = ingest_supply_chain_profiles(
+        request.profiles,
+        source_name=request.source_name or INGEST_SOURCE_NAME,
+        source_url=request.source_url or "supply-chain://ingest-api",
+        observer_name="supply_chain_ingest_api",
+    )
+    return {"source": "supply_chain_ingest_api", **stats}
 
 
 @app.get("/analytics/escalation-tiers", dependencies=[Depends(verify_api_key)])

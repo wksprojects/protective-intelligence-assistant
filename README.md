@@ -16,7 +16,7 @@ Quant hook: implements a multi-weighted scoring engine for cross-platform entity
 - Supply-chain fixture evaluation (n=6, threshold 45.0): **Precision 1.0000 / Recall 0.8000 / F1 0.8889** (`make supplychain-eval`).
 - Supply-chain scaffold coverage: **6 vendor profiles** across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
 - Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
-- Engineering verification: **96 automated tests passing** (`pytest -q`).
+- Engineering verification: **99 automated tests passing** (`pytest -q`).
 
 Note: insider/supply-chain metrics above are fixture benchmark scores, not claims of field production performance.
 
@@ -42,8 +42,8 @@ Note: insider/supply-chain metrics above are fixture benchmark scores, not claim
 
 | Enterprise Function | Repo Mapping (Current) | Integration Seam (Next Step) |
 |---|---|---|
-| EDR telemetry triage | Insider telemetry collector normalizes endpoint/user behavior into explainable IRS factors and reason codes. | Replace fixture loader in `collectors/insider_telemetry.py` with endpoint event ingestion adapter. |
-| DLP/exfil monitoring | Data movement signals (`download_gb`, USB writes, cloud upload volume) are scored as exfiltration indicators. | Feed DLP transfer events into insider fixture schema and preserve event IDs for traceability. |
+| EDR telemetry triage | Insider telemetry collector normalizes endpoint/user behavior into explainable IRS factors and reason codes, including API ingest payloads. | Add source-side event signing and immutable collector run IDs for stronger provenance. |
+| DLP/exfil monitoring | Data movement signals (`download_gb`, USB writes, cloud upload volume) are scored as exfiltration indicators via fixture or ingest API paths. | Map enterprise DLP event IDs into `scenario_id` lineage and carry them through casepack exports. |
 | UEBA risk accumulation | Multi-signal compounding + cumulative acceleration model in `analytics/insider_risk.py`. | Persist rolling baselines by subject/device from production identity/behavior streams. |
 | SIEM correlation | SOI threader links cross-domain entities (`user_id`, `device_id`, `vendor_id`, `domain`, `ipv4`, `url`) with pairwise evidence. | Ingest SIEM alert IDs as entity/provenance fields for pivoting and back-reference. |
 | SOAR-ready outputs | API endpoints expose scored queues with reason codes (`/analytics/insider-risk`, `/analytics/supply-chain-risk`, `/analytics/soi-threads`). | Add webhook/queue publisher that emits high-tier events to orchestration playbooks. |
@@ -59,6 +59,7 @@ Implemented now:
 - Environment-gated prototype collectors: Telegram and chans (fixture-first).
 - Insider telemetry collector + IRS analytics endpoint.
 - Environment-gated supply-chain collector scaffold + vendor risk endpoint.
+- API ingest endpoints for insider telemetry and supply-chain profiles (`POST /ingest/insider-events`, `POST /ingest/supply-chain-profiles`).
 - Dark-web collector scaffold wired into pipeline, disabled by default.
 - SOI thread correlation endpoint.
 - Targeted source preset preview endpoint for event/location watchlist expansion.
@@ -68,13 +69,13 @@ Implemented now:
 
 ## Screenshots
 
-| Situation Overview | Alert Triage |
+| Insider Risk Queue | Supply-Chain Risk Queue |
 |---|---|
-| ![Overview](docs/screenshots/overview.png) | ![Triage](docs/screenshots/triage.png) |
+| ![Insider Risk Endpoint](docs/screenshots/insider_risk_endpoint.png) | ![Supply Chain Risk Endpoint](docs/screenshots/supply_chain_risk_endpoint.png) |
 
-| Protectee Risk | Intelligence Analysis |
-|---|---|
-| ![Risk](docs/screenshots/protectee_risk.png) | ![Intelligence Analysis](docs/screenshots/intelligence_analysis.png) |
+Cross-domain convergence snapshot:
+
+![Cross-Domain Convergence](docs/screenshots/cross_domain_convergence.png)
 
 ## Architecture
 
@@ -256,6 +257,12 @@ Generate an analyst-ready incident thread case pack:
 make casepack
 ```
 
+Refresh README screenshots (insider + supply chain + convergence):
+
+```bash
+make screenshots
+```
+
 `make casepack` runs in an isolated temporary database so it does not modify your operational/local alert corpus.
 
 Generate a compact benchmark table artifact:
@@ -326,6 +333,8 @@ Source reliability controls:
 - `POST /scrape/insider`
 - `POST /scrape/supply-chain`
 - `POST /scrape/social-media`
+- `POST /ingest/insider-events`
+- `POST /ingest/supply-chain-profiles`
 
 ### Core Analyst Workflow
 
@@ -389,6 +398,32 @@ Generated case-pack artifact:
     "pair_evidence": [{"left_alert_id": 1, "right_alert_id": 2, "score": 0.74}]
   }
 ]
+```
+
+`POST /ingest/insider-events` returns:
+
+```json
+{
+  "source": "insider_ingest_api",
+  "processed": 2,
+  "ingested": 1,
+  "updated": 0,
+  "invalid": 1,
+  "subjects_assessed": 1
+}
+```
+
+`POST /ingest/supply-chain-profiles` returns:
+
+```json
+{
+  "source": "supply_chain_ingest_api",
+  "processed": 2,
+  "ingested": 1,
+  "updated": 0,
+  "invalid": 1,
+  "profiles_scored": 1
+}
 ```
 
 ## Security and Data Handling Disclosure
@@ -507,7 +542,7 @@ Incremental modularization is now in place:
 python -m pytest tests/ -v
 ```
 
-Current suite status: 96 passing tests.
+Current suite status: 99 passing tests.
 
 ## Legal and Operational Note
 

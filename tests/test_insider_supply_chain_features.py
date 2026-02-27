@@ -210,3 +210,146 @@ def test_soi_threads_link_user_and_vendor_entities(client, monkeypatch):
 
     assert user_linked
     assert vendor_linked
+
+
+def test_fixture_collectors_do_not_duplicate_sources(client, monkeypatch):
+    from collectors.insider_telemetry import SOURCE_NAME as INSIDER_SOURCE_NAME
+    from collectors.supply_chain import SOURCE_NAME as SUPPLY_SOURCE_NAME
+
+    insider_resp = client.post("/scrape/insider")
+    assert insider_resp.status_code == 200
+    assert insider_resp.json()["ingested"] >= 1
+
+    monkeypatch.setenv("PI_ENABLE_SUPPLY_CHAIN", "1")
+    supply_resp = client.post("/scrape/supply-chain")
+    assert supply_resp.status_code == 200
+    assert supply_resp.json()["ingested"] >= 1
+
+    conn = get_connection()
+    insider_sources = conn.execute(
+        "SELECT COUNT(*) AS count FROM sources WHERE source_type = 'insider' AND name = ?",
+        (INSIDER_SOURCE_NAME,),
+    ).fetchone()["count"]
+    supply_sources = conn.execute(
+        "SELECT COUNT(*) AS count FROM sources WHERE source_type = 'supply_chain' AND name = ?",
+        (SUPPLY_SOURCE_NAME,),
+    ).fetchone()["count"]
+    conn.close()
+
+    assert insider_sources == 1
+    assert supply_sources == 1
+
+
+def test_ingest_insider_events_endpoint(client):
+    response = client.post(
+        "/ingest/insider-events",
+        json={
+            "source_name": "Insider Telemetry (Synthetic EDR Feed)",
+            "source_url": "insider://edr-fixture-adapter",
+            "events": [
+                {
+                    "event_id": "edr-evt-001",
+                    "subject_id": "EMP-9901",
+                    "subject_name": "Casey Rivers",
+                    "timestamp": "2026-02-27 03:14:00",
+                    "title": "Bulk engineering archive transfer",
+                    "summary": "Large archive transfer after midnight from privileged endpoint.",
+                    "signals": {
+                        "access_pattern_deviation": 0.86,
+                        "off_hours_activity": 0.92,
+                        "resource_sensitivity_access": 0.88,
+                        "bulk_data_download_gb": 48.0,
+                        "usb_write_gb": 14.0,
+                        "cloud_upload_gb": 39.0,
+                        "badge_login_mismatch": 1.0,
+                        "policy_violations": 0.9,
+                        "communication_metadata_shift": 0.67,
+                        "cumulative_risk_acceleration": 0.84,
+                    },
+                    "related_entities": [
+                        {"entity_type": "user_id", "entity_value": "emp-9901"},
+                        {"entity_type": "device_id", "entity_value": "lpt-77"},
+                        {"entity_type": "vendor_id", "entity_value": "sc-004"},
+                    ],
+                },
+                {"event_id": "edr-evt-invalid", "subject_name": "Missing Subject"},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["processed"] == 2
+    assert payload["ingested"] == 1
+    assert payload["updated"] == 0
+    assert payload["invalid"] == 1
+    assert payload["subjects_assessed"] == 1
+
+    analytics = client.get("/analytics/insider-risk", params={"limit": 10})
+    assert analytics.status_code == 200
+    rows = analytics.json()
+    subject_row = next((row for row in rows if row["subject_id"] == "EMP-9901"), None)
+    assert subject_row is not None
+    assert subject_row["irs_score"] >= 55.0
+    assert len(subject_row["reason_codes"]) > 0
+
+    conn = get_connection()
+    source = conn.execute(
+        "SELECT source_type, last_status FROM sources WHERE name = ? ORDER BY id DESC LIMIT 1",
+        ("Insider Telemetry (Synthetic EDR Feed)",),
+    ).fetchone()
+    conn.close()
+    assert source is not None
+    assert source["source_type"] == "insider"
+    assert source["last_status"] == "ok"
+
+
+def test_ingest_supply_chain_profiles_endpoint(client):
+    response = client.post(
+        "/ingest/supply-chain-profiles",
+        json={
+            "source_name": "Supply Chain Risk (Synthetic TPRM Feed)",
+            "source_url": "supply-chain://tprm-fixture-adapter",
+            "profiles": [
+                {
+                    "external_id": "ven-8472",
+                    "name": "HarborLine Logistics",
+                    "domain": "harborline.example",
+                    "country": "IR",
+                    "factors": {
+                        "geographic_risk": 0.93,
+                        "single_point_of_failure": 0.88,
+                        "access_privilege_scope": 0.74,
+                        "data_sensitivity_exposure": 0.69,
+                        "compliance_posture": 0.32,
+                    },
+                    "shared_entities": [{"entity_type": "vendor_id", "entity_value": "ven-8472"}],
+                },
+                {"external_id": "invalid-profile", "country": "US"},
+            ],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["processed"] == 2
+    assert payload["ingested"] == 1
+    assert payload["updated"] == 0
+    assert payload["invalid"] == 1
+    assert payload["profiles_scored"] == 1
+
+    analytics = client.get("/analytics/supply-chain-risk", params={"limit": 10})
+    assert analytics.status_code == 200
+    rows = analytics.json()
+    profile_row = next((row for row in rows if row["profile_id"] == "ven-8472"), None)
+    assert profile_row is not None
+    assert profile_row["vendor_risk_score"] >= 45.0
+    assert len(profile_row["reason_codes"]) > 0
+
+    conn = get_connection()
+    source = conn.execute(
+        "SELECT source_type, last_status FROM sources WHERE name = ? ORDER BY id DESC LIMIT 1",
+        ("Supply Chain Risk (Synthetic TPRM Feed)",),
+    ).fetchone()
+    conn.close()
+    assert source is not None
+    assert source["source_type"] == "supply_chain"
+    assert source["last_status"] == "ok"
