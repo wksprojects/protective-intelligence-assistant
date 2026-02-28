@@ -1,4 +1,4 @@
-# Protective Intelligence Assistant for cross-domain investigations
+# Protective Intelligence Assistant
 
 [![CI](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
@@ -77,14 +77,32 @@ All capabilities below are implemented as one protective-intelligence pipeline, 
 | Detection to analyst action | Correlated threads + scored outputs + casepack + SITREP endpoints |
 | Operational rigor and defensibility | source-health telemetry, audit log, explainable reason codes, reproducible eval artifacts |
 
+### Intelligence Lifecycle Coverage
+
+| Lifecycle Phase | Implementation |
+|---|---|
+| **Requirements & Direction** | Configurable watchlist (`config/watchlist.yaml`) with keyword priorities, POIs, protected locations, and event calendars. Source presets endpoint for tasked collection expansion. |
+| **Collection** | Multi-INT ingestion: OSINT feeds (RSS, Reddit, Pastebin, ACLED), HUMINT-adjacent behavioral telemetry (insider UEBA simulation), supply-chain due-diligence profiles. Environment-gated restricted-platform prototypes. |
+| **Processing & Exploitation** | Entity extraction (POI, IOC, location), deduplication, keyword matching, geocoding enrichment, source credibility weighting via Bayesian priors. |
+| **Analysis & Production** | Multi-factor risk scoring (ORS, TAS, IRS), SOI correlation threading with reason-coded pair evidence, TRAP-18-informed behavioral assessment, Monte Carlo uncertainty quantification. |
+| **Dissemination** | Analyst-ready products: daily intelligence reports, protectee travel briefs, SITREPs, investigation casepacks. SOAR-consumable JSON queues. |
+| **Feedback & Evaluation** | Disposition tracking (TP/FP/escalation), signal-quality precision analytics, hand-labeled eval workflows, source-health telemetry with auto-disable. |
+
+### Analytical Frameworks
+
+- **TRAP-18 (adapted):** TAS scoring applies Fixation, Action Imperative (energy burst), Leakage, Pathway, and Targeting Specificity as weighted behavioral flags for protectee threat assessment.
+- **Pathway-to-violence model:** `behavioral_assessment.py` scores eight pathway indicators (grievance, fixation, identification, novel aggression, energy burst, leakage, last resort, directly communicated threat) with escalation trend detection.
+- **Insider threat behavioral indicators:** IRS weights seven factors aligned with NITTF/CISA observable categories — access pattern deviation, data volume anomaly, physical/logical mismatch, access escalation, communication metadata shift, HR context risk, temporal anomaly.
+- **Supply-chain risk decomposition:** Five-factor model covering geographic exposure, concentration/single-point-of-failure, privilege scope, data sensitivity classification, and compliance posture — consistent with NIST SP 800-161 risk factor taxonomy.
+
 ### Operational Mapping (Keyword Scan)
 
 - **EDR / UEBA:** insider telemetry normalization + IRS reason-coded scoring.
 - **DLP / Exfil:** data movement anomaly factors (`download_gb`, USB, cloud upload).
 - **SIEM / Correlation:** SOI threading over `user_id`, `device_id`, `vendor_id`, `domain`, `ipv4`, `url`.
 - **SOAR-ready outputs:** scored queues from `/analytics/insider-risk`, `/analytics/supply-chain-risk`, `/analytics/soi-threads`.
-- **Evidence handling:** casepack provenance keys + pairwise linkage evidence + timeline.
-- **Analyst workflow:** detect -> score -> correlate -> disposition.
+- **Evidence handling:** casepack provenance keys + pairwise linkage evidence + timeline reconstruction.
+- **Analyst workflow:** detect → enrich → correlate → score → triage → disposition → feedback loop.
 
 ## Current Status
 
