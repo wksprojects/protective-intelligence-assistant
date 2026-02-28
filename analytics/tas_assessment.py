@@ -191,7 +191,7 @@ def _load_escalation_tiers():
         with open(WATCHLIST_CONFIG_PATH, "r") as fh:
             config = yaml.safe_load(fh) or {}
         return config.get("escalation_tiers", [])
-    except Exception:
+    except (OSError, yaml.YAMLError, AttributeError):
         return [
             {"threshold": 85, "label": "CRITICAL", "notify": ["detail_leader", "intel_manager"],
              "action": "Immediate briefing required.", "response_window": "30 minutes"},
