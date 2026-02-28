@@ -137,6 +137,7 @@ def geocode_query(conn, query, provider="nominatim"):
                 updated_at = excluded.updated_at""",
             (normalized.lower(), lat, lon, provider, utcnow().strftime("%Y-%m-%d %H:%M:%S")),
         )
+        conn.commit()
         return lat, lon
     except Exception:
         return None

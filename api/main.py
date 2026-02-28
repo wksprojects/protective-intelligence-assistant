@@ -381,7 +381,8 @@ def readyz():
         conn.execute("SELECT COUNT(*) FROM sources").fetchone()
         return {"status": "ready"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Database not ready: {e}") from e
+        logger.error("readyz check failed: %s", e)
+        raise HTTPException(status_code=503, detail="Database not ready") from e
     finally:
         if conn is not None:
             conn.close()
@@ -783,7 +784,10 @@ def get_report(report_date: str):
         "new_cves",
     ):
         if result.get(field):
-            result[field] = json.loads(result[field])
+            try:
+                result[field] = json.loads(result[field])
+            except (json.JSONDecodeError, TypeError):
+                pass
     return result
 
 
@@ -1190,7 +1194,10 @@ def get_poi_assessment(
     ).fetchone()
     if row:
         payload = dict(row)
-        payload["evidence"] = json.loads(payload.get("evidence_json") or "{}")
+        try:
+            payload["evidence"] = json.loads(payload.get("evidence_json") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            payload["evidence"] = {}
         payload["escalation"] = build_escalation_explanation(payload)
         conn.close()
         return payload
@@ -1399,9 +1406,12 @@ def add_keyword(keyword: KeywordCreate):
             (term, category, keyword.weight),
         )
         conn.commit()
-    except Exception:
+    except Exception as e:
         conn.close()
-        raise HTTPException(status_code=409, detail="Keyword already exists")
+        if "UNIQUE constraint" in str(e):
+            raise HTTPException(status_code=409, detail="Keyword already exists")
+        logger.error("keyword insert failed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to create keyword")
     new_keyword = conn.execute("SELECT * FROM keywords WHERE term = ?", (term,)).fetchone()
     conn.close()
     return dict(new_keyword)
