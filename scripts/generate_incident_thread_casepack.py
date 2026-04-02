@@ -177,7 +177,12 @@ def _choose_thread(threads):
         has_cross_domain = 1 if (has_insider and (has_external or has_vendor)) else 0
         reason_codes = set(thread.get("reason_codes") or [])
         reason_bonus = 0
-        for key in ("shared_user_id", "shared_device_id", "shared_vendor_id", "shared_actor_handle"):
+        for key in (
+            "shared_user_id",
+            "shared_device_id",
+            "shared_vendor_id",
+            "shared_actor_handle",
+        ):
             if key in reason_codes:
                 reason_bonus += 1
         return (
@@ -215,7 +220,9 @@ def _table_lines(headers, rows):
 
 
 def _build_thread_context(thread):
-    alert_ids = [int(item["alert_id"]) for item in thread.get("timeline", []) if item.get("alert_id")]
+    alert_ids = [
+        int(item["alert_id"]) for item in thread.get("timeline", []) if item.get("alert_id")
+    ]
     if not alert_ids:
         return {
             "user_ids": set(),
@@ -404,7 +411,9 @@ def _render_casepack(thread, counts):
         )
     lines.extend(["## Insider Risk Context"])
     if insider_table_rows:
-        lines.extend(_table_lines(["Subject ID", "Subject Name", "IRS", "Tier"], insider_table_rows))
+        lines.extend(
+            _table_lines(["Subject ID", "Subject Name", "IRS", "Tier"], insider_table_rows)
+        )
     else:
         lines.append("No insider assessment rows matched thread provenance keys.")
     lines.append("")
@@ -454,7 +463,9 @@ def _render_casepack(thread, counts):
     lines.append("")
     lines.append("## Pairwise Link Provenance")
     if pair_rows:
-        lines.extend(_table_lines(["Left Alert", "Right Alert", "Score", "Reason Codes"], pair_rows))
+        lines.extend(
+            _table_lines(["Left Alert", "Right Alert", "Score", "Reason Codes"], pair_rows)
+        )
     else:
         lines.append("No pair evidence rows captured.")
 

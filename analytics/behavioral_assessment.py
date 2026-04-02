@@ -5,7 +5,6 @@ from datetime import timedelta
 
 from analytics.utils import utcnow
 
-
 # Pathway indicator weights for composite score (sum to 1.0)
 PATHWAY_WEIGHTS = {
     "grievance_level": 0.10,
@@ -66,8 +65,9 @@ def score_to_risk_tier(pathway_score):
     return "LOW"
 
 
-def upsert_assessment(conn, subject_id, indicators, evidence_summary=None,
-                      source_alert_ids=None, analyst_notes=None):
+def upsert_assessment(
+    conn, subject_id, indicators, evidence_summary=None, source_alert_ids=None, analyst_notes=None
+):
     """Create or update a behavioral assessment for a threat subject."""
     pathway_score = compute_pathway_score(indicators)
     escalation_trend = determine_escalation_trend(conn, subject_id, pathway_score)

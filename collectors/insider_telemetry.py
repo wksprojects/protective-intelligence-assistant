@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import sqlite3
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from analytics.insider_risk import (
     build_subject_assessments,
@@ -172,7 +176,11 @@ def _upsert_alert_entities(conn, alert_id, scored_event):
     for entity in scored_event.get("related_entities") or []:
         entity_type = str(entity.get("entity_type") or "").strip().lower()
         entity_value = str(entity.get("entity_value") or "").strip().lower()
-        if entity_type not in {"domain", "ipv4", "url", "email", "user_id", "device_id", "vendor_id"} or not entity_value:
+        if (
+            entity_type
+            not in {"domain", "ipv4", "url", "email", "user_id", "device_id", "vendor_id"}
+            or not entity_value
+        ):
             continue
         conn.execute(
             """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
@@ -254,11 +262,12 @@ def _normalize_event(raw_event, idx):
     if not subject_id:
         return None
 
-    subject_name = str(raw_event.get("subject_name") or raw_event.get("user_name") or subject_id).strip()
-    event_ts = (
-        str(raw_event.get("event_ts") or raw_event.get("timestamp") or "").strip()
-        or utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    )
+    subject_name = str(
+        raw_event.get("subject_name") or raw_event.get("user_name") or subject_id
+    ).strip()
+    event_ts = str(
+        raw_event.get("event_ts") or raw_event.get("timestamp") or ""
+    ).strip() or utcnow().strftime("%Y-%m-%d %H:%M:%S")
     scenario_id = str(raw_event.get("scenario_id") or raw_event.get("event_id") or "").strip()
     if not scenario_id:
         digest = hashlib.sha256(
@@ -289,7 +298,9 @@ def _normalize_event(raw_event, idx):
         signals.get("physical_logical_mismatch"),
         raw_event.get("physical_logical_mismatch"),
     )
-    escalation_signal = _coalesce(signals.get("access_escalation"), raw_event.get("access_escalation_signal"))
+    escalation_signal = _coalesce(
+        signals.get("access_escalation"), raw_event.get("access_escalation_signal")
+    )
     comms_signal = _coalesce(
         signals.get("communication_metadata_anomaly"),
         signals.get("communication_metadata_shift"),
@@ -574,12 +585,14 @@ def collect_insider_telemetry():
     if not fixtures:
         conn = get_connection()
         try:
-            source_id = _ensure_source(conn, source_name=SOURCE_NAME, source_url="insider://fixtures")
+            source_id = _ensure_source(
+                conn, source_name=SOURCE_NAME, source_url="insider://fixtures"
+            )
             mark_source_failure(conn, source_id, "insider fixtures missing or empty")
             conn.commit()
         finally:
             conn.close()
-        print("Insider telemetry collector skipped (no fixtures found).")
+        logger.info("Insider telemetry collector skipped (no fixtures found).")
         return 0
 
     try:
@@ -589,18 +602,20 @@ def collect_insider_telemetry():
             source_url="insider://fixtures",
             observer_name="insider_fixture",
         )
-        print(
+        logger.info(
             "Insider telemetry collector complete. "
             f"{stats['ingested']} new alerts, {stats['updated']} updated."
         )
         return int(stats["ingested"])
-    except Exception as exc:
+    except (sqlite3.DatabaseError, json.JSONDecodeError, KeyError, ValueError, OSError) as exc:
         conn = get_connection()
         try:
-            source_id = _ensure_source(conn, source_name=SOURCE_NAME, source_url="insider://fixtures")
+            source_id = _ensure_source(
+                conn, source_name=SOURCE_NAME, source_url="insider://fixtures"
+            )
             mark_source_failure(conn, source_id, f"insider collector failed: {exc!r}")
             conn.commit()
         finally:
             conn.close()
-        print(f"Insider telemetry collector failed: {exc}")
+        logger.error(f"Insider telemetry collector failed: {exc}")
         return 0

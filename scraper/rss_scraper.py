@@ -1,9 +1,12 @@
+import logging
 import re
 import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
 import feedparser
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_html(text):
@@ -16,9 +19,10 @@ def _sanitize_html(text):
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
+
 from analytics.dedup import check_duplicate
-from analytics.ep_pipeline import process_ep_signals
 from analytics.entity_extraction import extract_and_store_alert_entities
+from analytics.ep_pipeline import process_ep_signals
 from analytics.risk_scoring import (
     build_frequency_snapshot,
     increment_keyword_frequency,
@@ -56,11 +60,11 @@ def fetch_rss_feed(url):
     feed = feedparser.parse(url)
     status = getattr(feed, "status", None)
     if status and int(status) >= 400:
-        print(f"RSS fetch HTTP {status} for {url}")
+        logger.warning(f"RSS fetch HTTP {status} for {url}")
     if getattr(feed, "bozo", 0) and not feed.entries:
         bozo_exc = getattr(feed, "bozo_exception", None)
         if bozo_exc is not None:
-            print(f"RSS parse warning for {url}: {type(bozo_exc).__name__}: {bozo_exc}")
+            logger.warning(f"RSS parse warning for {url}: {type(bozo_exc).__name__}: {bozo_exc}")
     entries = []
     for entry in feed.entries:
         entries.append(
@@ -127,7 +131,7 @@ def run_rss_scraper(frequency_snapshot=None):
     duplicates = 0
 
     for source in sources:
-        print(f"Scraping: {source['name']}")
+        logger.info(f"Scraping: {source['name']}")
         source_started = time.perf_counter()
         entries = fetch_rss_feed(source["url"])
         if not entries:
@@ -203,7 +207,7 @@ def run_rss_scraper(frequency_snapshot=None):
 
     conn.commit()
     conn.close()
-    print(f"RSS scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped.")
+    logger.info(f"RSS scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped.")
     return new_alerts
 
 

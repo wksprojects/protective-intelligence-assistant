@@ -12,8 +12,8 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from evals.correlation_engine_eval import (  # noqa: E402
-    run_correlation_engine_evaluation,
     render_correlation_engine_eval_markdown,
+    run_correlation_engine_evaluation,
 )
 
 

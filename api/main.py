@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import secrets
+import sqlite3
 import sys
 import threading
 import time
@@ -11,6 +12,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
@@ -168,7 +170,9 @@ def startup():
     keyword_count = conn.execute("SELECT COUNT(*) AS count FROM keywords").fetchone()["count"]
     actor_count = conn.execute("SELECT COUNT(*) AS count FROM threat_actors").fetchone()["count"]
     poi_count = conn.execute("SELECT COUNT(*) AS count FROM pois").fetchone()["count"]
-    loc_count = conn.execute("SELECT COUNT(*) AS count FROM protected_locations").fetchone()["count"]
+    loc_count = conn.execute("SELECT COUNT(*) AS count FROM protected_locations").fetchone()[
+        "count"
+    ]
     event_count = conn.execute("SELECT COUNT(*) AS count FROM events").fetchone()["count"]
     conn.close()
 
@@ -192,11 +196,26 @@ async def lifespan(application: FastAPI):
     yield
 
 
+_docs_url = None if _AUTH_REQUIRED else "/docs"
+_redoc_url = None if _AUTH_REQUIRED else "/redoc"
+
 app = FastAPI(
     title="Protective Intelligence Assistant API",
     description="EP-focused REST API: protectee/facility/travel triage, ORS/TAS/IRS scoring, supply-chain risk scaffolding, SITREPs, and explainable uncertainty.",
     version="5.0.0",
     lifespan=lifespan,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
+)
+
+# CORS: allow all origins in dev, restrict in production via env var
+_cors_origins = os.getenv("PI_CORS_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -228,7 +247,7 @@ def _audit_mutation(
             ),
         )
         conn.commit()
-    except Exception:
+    except (sqlite3.DatabaseError, OSError):
         logger.exception("audit_log_write_failed", extra={"path": request.url.path})
     finally:
         if conn is not None:
@@ -355,7 +374,9 @@ def _validate_travel_window(start_dt: str, end_dt: str):
         start_date = datetime.strptime(start_dt, "%Y-%m-%d")
         end_date = datetime.strptime(end_dt, "%Y-%m-%d")
     except ValueError as e:
-        raise HTTPException(status_code=422, detail="start_dt and end_dt must use YYYY-MM-DD") from e
+        raise HTTPException(
+            status_code=422, detail="start_dt and end_dt must use YYYY-MM-DD"
+        ) from e
     if end_date < start_date:
         raise HTTPException(status_code=422, detail="end_dt must be on or after start_dt")
     if (end_date - start_date).days > 45:
@@ -380,7 +401,7 @@ def readyz():
         conn.execute("SELECT 1").fetchone()
         conn.execute("SELECT COUNT(*) FROM sources").fetchone()
         return {"status": "ready"}
-    except Exception as e:
+    except (sqlite3.DatabaseError, OSError) as e:
         logger.error("readyz check failed: %s", e)
         raise HTTPException(status_code=503, detail="Database not ready") from e
     finally:
@@ -393,7 +414,9 @@ def metrics():
     conn = get_connection()
     try:
         total_alerts = conn.execute("SELECT COUNT(*) AS count FROM alerts").fetchone()["count"]
-        unreviewed = conn.execute("SELECT COUNT(*) AS count FROM alerts WHERE reviewed = 0").fetchone()["count"]
+        unreviewed = conn.execute(
+            "SELECT COUNT(*) AS count FROM alerts WHERE reviewed = 0"
+        ).fetchone()["count"]
         scrape_runs = conn.execute("SELECT COUNT(*) AS count FROM scrape_runs").fetchone()["count"]
         last_scrape = conn.execute(
             """SELECT started_at, completed_at, status, total_alerts
@@ -1356,7 +1379,14 @@ def list_travel_briefs(limit: int = Query(default=20, ge=1, le=100)):
 @app.post("/alerts/{alert_id}/disposition", dependencies=[Depends(verify_api_key)])
 def create_disposition(alert_id: int, body: DispositionRequest):
     disposition_status = _bounded_text(body.status, "status", 32, required=True)
-    allowed_statuses = {"open", "monitoring", "escalated", "closed", "false_positive", "true_positive"}
+    allowed_statuses = {
+        "open",
+        "monitoring",
+        "escalated",
+        "closed",
+        "false_positive",
+        "true_positive",
+    }
     if disposition_status not in allowed_statuses:
         raise HTTPException(
             status_code=422,
@@ -1406,7 +1436,7 @@ def add_keyword(keyword: KeywordCreate):
             (term, category, keyword.weight),
         )
         conn.commit()
-    except Exception as e:
+    except sqlite3.Error as e:
         conn.close()
         if "UNIQUE constraint" in str(e):
             raise HTTPException(status_code=409, detail="Keyword already exists")
@@ -1688,7 +1718,12 @@ def get_sitrep(sitrep_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="SITREP not found")
     result = dict(row)
-    for field in ("affected_protectees", "affected_locations", "recommended_actions", "escalation_notify"):
+    for field in (
+        "affected_protectees",
+        "affected_locations",
+        "recommended_actions",
+        "escalation_notify",
+    ):
         if result.get(field):
             try:
                 result[field] = json.loads(result[field])
@@ -1722,7 +1757,10 @@ def generate_poi_sitrep(poi_id: int):
     return sitrep
 
 
-@app.post("/sitreps/generate/facility/{location_id}/alert/{alert_id}", dependencies=[Depends(verify_api_key)])
+@app.post(
+    "/sitreps/generate/facility/{location_id}/alert/{alert_id}",
+    dependencies=[Depends(verify_api_key)],
+)
 def generate_facility_sitrep(location_id: int, alert_id: int):
     """Generate a SITREP for a facility breach event."""
     from analytics.sitrep import generate_sitrep_for_facility_breach
@@ -1858,13 +1896,33 @@ def get_escalation_tiers():
     # Hardcoded fallback
     return {
         "tiers": [
-            {"threshold": 85, "label": "CRITICAL", "notify": ["detail_leader", "intel_manager"],
-             "action": "Immediate briefing required.", "response_window": "30 minutes"},
-            {"threshold": 65, "label": "ELEVATED", "notify": ["intel_analyst"],
-             "action": "Enhanced monitoring. Assess within 4 hours.", "response_window": "4 hours"},
-            {"threshold": 40, "label": "ROUTINE", "notify": [],
-             "action": "Log and monitor.", "response_window": "24 hours"},
-            {"threshold": 0, "label": "LOW", "notify": [],
-             "action": "No immediate action.", "response_window": "N/A"},
+            {
+                "threshold": 85,
+                "label": "CRITICAL",
+                "notify": ["detail_leader", "intel_manager"],
+                "action": "Immediate briefing required.",
+                "response_window": "30 minutes",
+            },
+            {
+                "threshold": 65,
+                "label": "ELEVATED",
+                "notify": ["intel_analyst"],
+                "action": "Enhanced monitoring. Assess within 4 hours.",
+                "response_window": "4 hours",
+            },
+            {
+                "threshold": 40,
+                "label": "ROUTINE",
+                "notify": [],
+                "action": "Log and monitor.",
+                "response_window": "24 hours",
+            },
+            {
+                "threshold": 0,
+                "label": "LOW",
+                "notify": [],
+                "action": "No immediate action.",
+                "response_window": "N/A",
+            },
         ]
     }

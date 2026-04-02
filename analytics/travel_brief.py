@@ -18,7 +18,9 @@ def _haversine_miles(lat1, lon1, lat2, lon2):
 
 
 def _as_dt(value):
-    return datetime.strptime(value, "%Y-%m-%d") if len(value) == 10 else datetime.fromisoformat(value)
+    return (
+        datetime.strptime(value, "%Y-%m-%d") if len(value) == 10 else datetime.fromisoformat(value)
+    )
 
 
 def generate_travel_brief(
@@ -60,7 +62,9 @@ def generate_travel_brief(
         for row in alerts:
             distance = None
             if coords and row["lat"] is not None and row["lon"] is not None:
-                distance = _haversine_miles(coords[0], coords[1], float(row["lat"]), float(row["lon"]))
+                distance = _haversine_miles(
+                    coords[0], coords[1], float(row["lat"]), float(row["lon"])
+                )
             if coords and distance is not None and distance > 120:
                 continue
             if destination.lower() not in (row["location_text"] or "").lower() and distance is None:
@@ -113,7 +117,9 @@ def generate_travel_brief(
         lines.append("")
         lines.append(f"- Window: {start_dt} to {end_dt}")
         lines.append(f"- POI ID: {poi_id if poi_id else 'N/A'}")
-        lines.append(f"- Protected Location ID: {protected_location_id if protected_location_id else 'N/A'}")
+        lines.append(
+            f"- Protected Location ID: {protected_location_id if protected_location_id else 'N/A'}"
+        )
         lines.append("")
 
         lines.append("## Internal Alerts Near Destination")

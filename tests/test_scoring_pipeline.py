@@ -1,11 +1,11 @@
 from datetime import timedelta
 
-from analytics.utils import utcnow
 from analytics.risk_scoring import (
     build_frequency_snapshot,
     increment_keyword_frequency,
     score_alert,
 )
+from analytics.utils import utcnow
 from api.main import startup
 from database.init_db import get_connection
 from scraper.rss_scraper import match_keywords

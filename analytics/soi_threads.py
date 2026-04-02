@@ -8,7 +8,15 @@ from urllib.parse import urlparse
 from analytics.utils import parse_timestamp, utcnow
 from database.init_db import get_connection
 
-_SHARED_ENTITY_TYPES = {"actor_handle", "domain", "ipv4", "url", "user_id", "device_id", "vendor_id"}
+_SHARED_ENTITY_TYPES = {
+    "actor_handle",
+    "domain",
+    "ipv4",
+    "url",
+    "user_id",
+    "device_id",
+    "vendor_id",
+}
 _MAX_PAIR_CHECKS_PER_GROUP = 25000
 _MIN_PAIR_LINK_SCORE = 0.35
 
@@ -178,7 +186,9 @@ def _connect_pairs(
                     score_delta += _REASON_WEIGHTS["tight_temporal"]
                     reasons.add("tight_temporal")
 
-                similarity = _jaccard(left.get("token_set") or set(), right.get("token_set") or set())
+                similarity = _jaccard(
+                    left.get("token_set") or set(), right.get("token_set") or set()
+                )
                 if similarity >= 0.25:
                     score_delta += _REASON_WEIGHTS["linguistic_overlap_high"]
                     reasons.add("linguistic_overlap_high")
@@ -457,7 +467,9 @@ def build_soi_threads(
 
             start_ts = timeline[0]["timestamp"]
             end_ts = timeline[-1]["timestamp"]
-            poi_names = [poi_name_by_id.get(pid) for pid in sorted(poi_ids) if poi_name_by_id.get(pid)]
+            poi_names = [
+                poi_name_by_id.get(pid) for pid in sorted(poi_ids) if poi_name_by_id.get(pid)
+            ]
 
             if actor_handles and "shared_actor_handle" in reason_codes:
                 label = f"Actor {sorted(actor_handles)[0]}"
@@ -470,7 +482,8 @@ def build_soi_threads(
 
             threads.append(
                 {
-                    "thread_id": "soi-" + hashlib.sha256(
+                    "thread_id": "soi-"
+                    + hashlib.sha256(
                         ",".join(str(aid) for aid in sorted(cluster_ids)).encode()
                     ).hexdigest()[:12],
                     "label": label,

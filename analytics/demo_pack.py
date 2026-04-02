@@ -43,7 +43,11 @@ def _ensure_keyword(conn, keyword):
     if row:
         conn.execute(
             "UPDATE keywords SET category = ?, weight = ? WHERE id = ?",
-            (keyword.get("category", "protective_intel"), float(keyword.get("weight", 1.0)), row["id"]),
+            (
+                keyword.get("category", "protective_intel"),
+                float(keyword.get("weight", 1.0)),
+                row["id"],
+            ),
         )
         return row["id"]
     conn.execute(

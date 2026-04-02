@@ -1,9 +1,13 @@
-import feedparser
+import logging
 import time
 
+import feedparser
+
+logger = logging.getLogger(__name__)
+
 from analytics.dedup import check_duplicate
-from analytics.ep_pipeline import process_ep_signals
 from analytics.entity_extraction import extract_and_store_alert_entities
+from analytics.ep_pipeline import process_ep_signals
 from analytics.risk_scoring import (
     build_frequency_snapshot,
     increment_keyword_frequency,
@@ -53,7 +57,7 @@ def run_reddit_scraper(frequency_snapshot=None):
     duplicates = 0
 
     for source in sources:
-        print(f"Scraping: {source['name']}")
+        logger.info(f"Scraping: {source['name']}")
         source_started = time.perf_counter()
         entries = fetch_reddit_rss(source["url"])
         if not entries:
@@ -128,7 +132,9 @@ def run_reddit_scraper(frequency_snapshot=None):
 
     conn.commit()
     conn.close()
-    print(f"Reddit scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped.")
+    logger.info(
+        f"Reddit scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped."
+    )
     return new_alerts
 
 

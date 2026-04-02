@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import sqlite3
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from analytics.risk_scoring import score_to_severity
 from analytics.supply_chain_risk import score_vendor_profile, upsert_supply_chain_assessments
@@ -113,7 +117,9 @@ def _ensure_source(conn, source_name=SOURCE_NAME, source_url="supply-chain://fix
 
 
 def _ensure_keyword(conn):
-    row = conn.execute("SELECT id FROM keywords WHERE term = ?", ("third party vendor risk",)).fetchone()
+    row = conn.execute(
+        "SELECT id FROM keywords WHERE term = ?", ("third party vendor risk",)
+    ).fetchone()
     if row:
         return int(row["id"])
     conn.execute(
@@ -250,9 +256,14 @@ def _normalize_profile(raw_profile, idx):
     if not vendor_name:
         return None
 
-    vendor_domain = str(raw_profile.get("vendor_domain") or raw_profile.get("domain") or "").strip().lower()
+    vendor_domain = (
+        str(raw_profile.get("vendor_domain") or raw_profile.get("domain") or "").strip().lower()
+    )
     profile_id = str(
-        raw_profile.get("profile_id") or raw_profile.get("vendor_id") or raw_profile.get("external_id") or ""
+        raw_profile.get("profile_id")
+        or raw_profile.get("vendor_id")
+        or raw_profile.get("external_id")
+        or ""
     ).strip()
     if not profile_id:
         profile_id = f"ing-vendor-{idx}-{vendor_name.lower().replace(' ', '-')[:24]}"
@@ -261,9 +272,9 @@ def _normalize_profile(raw_profile, idx):
     normalized["vendor_name"] = vendor_name
     normalized["vendor_domain"] = vendor_domain
     normalized["profile_id"] = profile_id
-    normalized["country"] = str(
-        raw_profile.get("country") or raw_profile.get("country_code") or ""
-    ).strip().upper()
+    normalized["country"] = (
+        str(raw_profile.get("country") or raw_profile.get("country_code") or "").strip().upper()
+    )
     normalized["single_point_of_failure"] = _as_bool(
         _coalesce(
             raw_profile.get("single_point_of_failure"),
@@ -280,33 +291,45 @@ def _normalize_profile(raw_profile, idx):
         _risk_to_dependency_percent(factors.get("concentration_risk")),
         30.0,
     )
-    normalized["privilege_scope"] = str(
-        _coalesce(
-            raw_profile.get("privilege_scope"),
-            factors.get("privilege_scope"),
-            _risk_to_privilege_scope(factors.get("privilege_scope_risk")),
-            _risk_to_privilege_scope(factors.get("access_privilege_scope")),
-            "moderate",
+    normalized["privilege_scope"] = (
+        str(
+            _coalesce(
+                raw_profile.get("privilege_scope"),
+                factors.get("privilege_scope"),
+                _risk_to_privilege_scope(factors.get("privilege_scope_risk")),
+                _risk_to_privilege_scope(factors.get("access_privilege_scope")),
+                "moderate",
+            )
         )
-    ).strip().lower()
-    normalized["data_sensitivity"] = str(
-        _coalesce(
-            raw_profile.get("data_sensitivity"),
-            factors.get("data_sensitivity"),
-            _risk_to_data_sensitivity(factors.get("data_exposure_risk")),
-            _risk_to_data_sensitivity(factors.get("data_sensitivity_exposure")),
-            "moderate",
+        .strip()
+        .lower()
+    )
+    normalized["data_sensitivity"] = (
+        str(
+            _coalesce(
+                raw_profile.get("data_sensitivity"),
+                factors.get("data_sensitivity"),
+                _risk_to_data_sensitivity(factors.get("data_exposure_risk")),
+                _risk_to_data_sensitivity(factors.get("data_sensitivity_exposure")),
+                "moderate",
+            )
         )
-    ).strip().lower()
-    normalized["compliance_posture"] = str(
-        _coalesce(
-            raw_profile.get("compliance_posture"),
-            factors.get("compliance_posture"),
-            _risk_to_compliance_posture(factors.get("compliance_posture_risk")),
-            _risk_to_compliance_posture(factors.get("compliance_posture_indicators")),
-            "adequate",
+        .strip()
+        .lower()
+    )
+    normalized["compliance_posture"] = (
+        str(
+            _coalesce(
+                raw_profile.get("compliance_posture"),
+                factors.get("compliance_posture"),
+                _risk_to_compliance_posture(factors.get("compliance_posture_risk")),
+                _risk_to_compliance_posture(factors.get("compliance_posture_indicators")),
+                "adequate",
+            )
         )
-    ).strip().lower()
+        .strip()
+        .lower()
+    )
     normalized["recent_incidents"] = _coalesce(
         raw_profile.get("recent_incidents"),
         factors.get("recent_incidents"),
@@ -369,24 +392,28 @@ def collect_supply_chain():
     if not _enabled():
         conn = get_connection()
         try:
-            source_id = _ensure_source(conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures")
+            source_id = _ensure_source(
+                conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures"
+            )
             mark_source_skipped(conn, source_id, "PI_ENABLE_SUPPLY_CHAIN not set")
             conn.commit()
         finally:
             conn.close()
-        print("Supply-chain collector skipped (PI_ENABLE_SUPPLY_CHAIN not set).")
+        logger.info("Supply-chain collector skipped (PI_ENABLE_SUPPLY_CHAIN not set).")
         return 0
 
     profiles = _load_fixtures()
     if not profiles:
         conn = get_connection()
         try:
-            source_id = _ensure_source(conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures")
+            source_id = _ensure_source(
+                conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures"
+            )
             mark_source_failure(conn, source_id, "supply chain fixtures missing or empty")
             conn.commit()
         finally:
             conn.close()
-        print("Supply-chain collector skipped (no fixtures found).")
+        logger.info("Supply-chain collector skipped (no fixtures found).")
         return 0
 
     try:
@@ -396,18 +423,20 @@ def collect_supply_chain():
             source_url="supply-chain://fixtures",
             observer_name="supply_chain_fixture",
         )
-        print(
+        logger.info(
             "Supply-chain collector complete. "
             f"{stats['ingested']} new alerts, {stats['updated']} updated."
         )
         return int(stats["ingested"])
-    except Exception as exc:
+    except (sqlite3.DatabaseError, json.JSONDecodeError, KeyError, ValueError, OSError) as exc:
         conn = get_connection()
         try:
-            source_id = _ensure_source(conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures")
+            source_id = _ensure_source(
+                conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures"
+            )
             mark_source_failure(conn, source_id, f"supply-chain collector failed: {exc!r}")
             conn.commit()
         finally:
             conn.close()
-        print(f"Supply-chain collector failed: {exc}")
+        logger.error(f"Supply-chain collector failed: {exc}")
         return 0

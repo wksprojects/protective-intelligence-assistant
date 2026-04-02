@@ -122,9 +122,7 @@ def main():
     full_accuracy = aggregate["full_detection_rate"]
 
     fp_reduction_abs = max(0, baseline_conf["fp"] - full_conf["fp"])
-    fp_reduction_pct = (
-        fp_reduction_abs / baseline_conf["fp"] if baseline_conf["fp"] > 0 else 0.0
-    )
+    fp_reduction_pct = fp_reduction_abs / baseline_conf["fp"] if baseline_conf["fp"] > 0 else 0.0
     time_saved_hours = (fp_reduction_abs * TRIAGE_MINUTES_PER_ESCALATION) / 60.0
 
     baseline_fp_rate = baseline_conf["fp"] / n_cases

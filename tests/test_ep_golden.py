@@ -35,10 +35,10 @@ from analytics.tas_assessment import (
 )
 from database.init_db import get_connection
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _insert_alert(conn, title, content="", url=None, source_id=None, keyword_id=None):
     """Insert a bare alert row and return its id."""
@@ -73,6 +73,7 @@ def _insert_alert_with_poi_hit(conn, poi_id, title, content="", match_value=None
 # 1. Name disambiguation
 # ---------------------------------------------------------------------------
 
+
 class TestNameDisambiguation:
     """POI matching resolves the correct protectee among similar names."""
 
@@ -105,9 +106,7 @@ class TestNameDisambiguation:
         assert cook_poi is not None
         for hit in hits:
             if hit["match_value"].lower() == "tim cook":
-                assert hit["poi_id"] == cook_poi["poi_id"], (
-                    "Tim Cook hit resolved to wrong POI id"
-                )
+                assert hit["poi_id"] == cook_poi["poi_id"], "Tim Cook hit resolved to wrong POI id"
 
     def test_different_poi_not_confused(self, client):
         """Text mentioning 'Satya Nadella' must not generate a hit for Tim Cook.
@@ -122,14 +121,13 @@ class TestNameDisambiguation:
         text = "Satya Nadella reviewed the quarterly security assessment."
         hits = match_pois(text, aliases)
         cook_hits = [h for h in hits if h["poi_name"] == "Tim Cook"]
-        assert len(cook_hits) == 0, (
-            "Text about Satya Nadella must not produce a Tim Cook hit"
-        )
+        assert len(cook_hits) == 0, "Text about Satya Nadella must not produce a Tim Cook hit"
 
 
 # ---------------------------------------------------------------------------
 # 2. Alias matching
 # ---------------------------------------------------------------------------
+
 
 class TestAliasMatching:
     """POI matching via configured aliases (e.g., 'Timothy D. Cook' -> 'Tim Cook')."""
@@ -152,17 +150,11 @@ class TestAliasMatching:
         )
         hits = match_pois(text, aliases)
         cook_alias_hits = [h for h in hits if h["match_value"] == "Timothy D. Cook"]
-        assert len(cook_alias_hits) >= 1, (
-            "Expected alias 'Timothy D. Cook' to produce a match"
-        )
+        assert len(cook_alias_hits) >= 1, "Expected alias 'Timothy D. Cook' to produce a match"
         # The hit must map back to the Tim Cook POI
-        cook_poi_id = next(
-            a["poi_id"] for a in aliases if a["poi_name"] == "Tim Cook"
-        )
+        cook_poi_id = next(a["poi_id"] for a in aliases if a["poi_name"] == "Tim Cook")
         for hit in cook_alias_hits:
-            assert hit["poi_id"] == cook_poi_id, (
-                "Alias 'Timothy D. Cook' resolved to wrong POI"
-            )
+            assert hit["poi_id"] == cook_poi_id, "Alias 'Timothy D. Cook' resolved to wrong POI"
 
     def test_jen_hsun_huang_alias(self, client):
         """Validate that 'Jen-Hsun Huang' alias resolves to Jensen Huang POI.
@@ -177,18 +169,15 @@ class TestAliasMatching:
         text = "Jen-Hsun Huang inspected the perimeter before the GTC keynote."
         hits = match_pois(text, aliases)
         huang_hits = [h for h in hits if h["match_value"] == "Jen-Hsun Huang"]
-        assert len(huang_hits) >= 1, (
-            "Expected alias 'Jen-Hsun Huang' to match Jensen Huang POI"
-        )
-        jensen_poi_id = next(
-            a["poi_id"] for a in aliases if a["poi_name"] == "Jensen Huang"
-        )
+        assert len(huang_hits) >= 1, "Expected alias 'Jen-Hsun Huang' to match Jensen Huang POI"
+        jensen_poi_id = next(a["poi_id"] for a in aliases if a["poi_name"] == "Jensen Huang")
         assert huang_hits[0]["poi_id"] == jensen_poi_id
 
 
 # ---------------------------------------------------------------------------
 # 3. Proximity calculation
 # ---------------------------------------------------------------------------
+
 
 class TestProximityCalculation:
     """An alert near a protected location is correctly flagged within radius."""
@@ -226,15 +215,12 @@ class TestProximityCalculation:
         assert len(prox) >= 1, "Expected at least one proximity record"
         # Find the Apple Park proximity row
         hq_prox = [
-            dict(r) for r in prox
-            if r["distance_miles"] is not None and r["distance_miles"] < 1.0
+            dict(r) for r in prox if r["distance_miles"] is not None and r["distance_miles"] < 1.0
         ]
-        assert len(hq_prox) >= 1, (
-            "Expected alert to be within 1 mile of Apple Park"
-        )
-        assert hq_prox[0]["within_radius"] == 1, (
-            "Alert within radius should be flagged within_radius=1"
-        )
+        assert len(hq_prox) >= 1, "Expected alert to be within 1 mile of Apple Park"
+        assert (
+            hq_prox[0]["within_radius"] == 1
+        ), "Alert within radius should be flagged within_radius=1"
 
     def test_alert_outside_radius_not_flagged(self, client):
         """An alert far from all protected locations must not be flagged.
@@ -262,14 +248,15 @@ class TestProximityCalculation:
         conn.close()
 
         for row in prox:
-            assert row["within_radius"] == 0, (
-                "Alert far from all protected locations should NOT be within_radius"
-            )
+            assert (
+                row["within_radius"] == 0
+            ), "Alert far from all protected locations should NOT be within_radius"
 
 
 # ---------------------------------------------------------------------------
 # 4. TAS scoring basics
 # ---------------------------------------------------------------------------
+
 
 class TestTASScoring:
     """TAS (Threat Assessment Score) is 0 when no alerts exist for a POI."""
@@ -321,6 +308,7 @@ class TestTASScoring:
 # 5. Escalation tier resolution
 # ---------------------------------------------------------------------------
 
+
 class TestEscalationTierResolution:
     """Score maps to correct escalation tier (CRITICAL/ELEVATED/ROUTINE/LOW)."""
 
@@ -358,14 +346,14 @@ class TestEscalationTierResolution:
         }
         explanation = build_escalation_explanation(assessment)
         assert explanation["escalation_tier"] == expected_tier, (
-            f"Score {score} should map to {expected_tier}, "
-            f"got {explanation['escalation_tier']}"
+            f"Score {score} should map to {expected_tier}, " f"got {explanation['escalation_tier']}"
         )
 
 
 # ---------------------------------------------------------------------------
 # 6. Behavioral assessment (pathway-to-violence)
 # ---------------------------------------------------------------------------
+
 
 class TestBehavioralAssessment:
     """Pathway-to-violence composite score computed correctly."""
@@ -379,9 +367,9 @@ class TestBehavioralAssessment:
         distorted, leading to miscalibrated risk tiers.
         """
         total = sum(PATHWAY_WEIGHTS.values())
-        assert math.isclose(total, 1.0, rel_tol=1e-9), (
-            f"PATHWAY_WEIGHTS must sum to 1.0, got {total}"
-        )
+        assert math.isclose(
+            total, 1.0, rel_tol=1e-9
+        ), f"PATHWAY_WEIGHTS must sum to 1.0, got {total}"
 
     def test_all_indicators_maximum_yields_100(self, client):
         """All indicators at 1.0 must produce a composite score of 100.0.
@@ -409,20 +397,18 @@ class TestBehavioralAssessment:
         arrives; the model must weight each indicator proportionally.
         """
         indicators = {
-            "grievance_level": 0.8,      # 0.8 * 0.10 * 100 = 8.0
-            "fixation_level": 0.6,       # 0.6 * 0.15 * 100 = 9.0
+            "grievance_level": 0.8,  # 0.8 * 0.10 * 100 = 8.0
+            "fixation_level": 0.6,  # 0.6 * 0.15 * 100 = 9.0
             "identification_level": 0.0,  # 0.0
-            "novel_aggression": 0.5,     # 0.5 * 0.15 * 100 = 7.5
-            "energy_burst": 0.3,         # 0.3 * 0.10 * 100 = 3.0
-            "leakage": 0.9,             # 0.9 * 0.15 * 100 = 13.5
-            "last_resort": 0.0,          # 0.0
+            "novel_aggression": 0.5,  # 0.5 * 0.15 * 100 = 7.5
+            "energy_burst": 0.3,  # 0.3 * 0.10 * 100 = 3.0
+            "leakage": 0.9,  # 0.9 * 0.15 * 100 = 13.5
+            "last_resort": 0.0,  # 0.0
             "directly_communicated_threat": 1.0,  # 1.0 * 0.15 * 100 = 15.0
         }
         expected = 8.0 + 9.0 + 0.0 + 7.5 + 3.0 + 13.5 + 0.0 + 15.0  # = 56.0
         score = compute_pathway_score(indicators)
-        assert math.isclose(score, expected, abs_tol=0.01), (
-            f"Expected {expected}, got {score}"
-        )
+        assert math.isclose(score, expected, abs_tol=0.01), f"Expected {expected}, got {score}"
 
     def test_score_to_risk_tier_mapping(self, client):
         """Behavioral pathway score maps to the correct risk tier.
@@ -483,6 +469,7 @@ class TestBehavioralAssessment:
 # 7. Behavioral trend detection
 # ---------------------------------------------------------------------------
 
+
 class TestBehavioralTrend:
     """Escalation trend detection (stable / increasing / decreasing)."""
 
@@ -506,9 +493,7 @@ class TestBehavioralTrend:
         trend = determine_escalation_trend(conn, subject_id, current_score=50.0)
         conn.close()
 
-        assert trend == "stable", (
-            "With no assessment history, trend must be 'stable'"
-        )
+        assert trend == "stable", "With no assessment history, trend must be 'stable'"
 
     def test_trend_increasing_detected(self, client):
         """When the current score is significantly higher than historical
@@ -539,9 +524,7 @@ class TestBehavioralTrend:
         trend = determine_escalation_trend(conn, subject_id, current_score=40.0)
         conn.close()
 
-        assert trend == "increasing", (
-            "Score 40 vs avg 20 should yield 'increasing' trend"
-        )
+        assert trend == "increasing", "Score 40 vs avg 20 should yield 'increasing' trend"
 
     def test_trend_decreasing_detected(self, client):
         """When the current score is significantly lower than historical
@@ -572,14 +555,13 @@ class TestBehavioralTrend:
         trend = determine_escalation_trend(conn, subject_id, current_score=50.0)
         conn.close()
 
-        assert trend == "decreasing", (
-            "Score 50 vs avg 70 should yield 'decreasing' trend"
-        )
+        assert trend == "decreasing", "Score 50 vs avg 70 should yield 'decreasing' trend"
 
 
 # ---------------------------------------------------------------------------
 # 8. SITREP generation
 # ---------------------------------------------------------------------------
+
 
 class TestSITREPGeneration:
     """SITREP created from POI escalation with correct markdown structure."""
@@ -663,6 +645,7 @@ class TestSITREPGeneration:
 # 9. Social media fixture loading
 # ---------------------------------------------------------------------------
 
+
 class TestSocialMediaFixtures:
     """Social media monitor loads fixture data correctly."""
 
@@ -676,9 +659,7 @@ class TestSocialMediaFixtures:
         used for demo and regression testing.
         """
         fixture_path = PROJECT_ROOT / "fixtures" / "social_media_fixtures.json"
-        assert fixture_path.exists(), (
-            f"Fixture file missing at {fixture_path}"
-        )
+        assert fixture_path.exists(), f"Fixture file missing at {fixture_path}"
         with open(fixture_path, "r", encoding="utf-8") as f:
             posts = json.load(f)
         assert isinstance(posts, list), "Fixtures must be a JSON array"
@@ -688,9 +669,7 @@ class TestSocialMediaFixtures:
         required_fields = {"platform", "title", "content", "url"}
         for post in posts:
             missing = required_fields - set(post.keys())
-            assert not missing, (
-                f"Post missing required fields: {missing}"
-            )
+            assert not missing, f"Post missing required fields: {missing}"
 
     def test_fixture_posts_cover_key_threat_categories(self, client):
         """Fixture data must cover the main EP threat categories:
@@ -708,9 +687,7 @@ class TestSocialMediaFixtures:
         categories = {post.get("category") for post in posts}
         expected = {"protective_intel", "protest_disruption", "insider_workplace"}
         missing = expected - categories
-        assert not missing, (
-            f"Fixture data missing threat categories: {missing}"
-        )
+        assert not missing, f"Fixture data missing threat categories: {missing}"
 
     def test_social_media_scrape_endpoint(self, client, monkeypatch):
         """Triggering the social media scrape endpoint ingests fixture data
@@ -721,8 +698,12 @@ class TestSocialMediaFixtures:
         and EP enrichment pipeline.
         """
         # Ensure no live API keys are set
-        for platform_cfg in ("TWITTER_BEARER_TOKEN", "INSTAGRAM_ACCESS_TOKEN",
-                             "TELEGRAM_API_ID", "TIKTOK_RESEARCH_TOKEN"):
+        for platform_cfg in (
+            "TWITTER_BEARER_TOKEN",
+            "INSTAGRAM_ACCESS_TOKEN",
+            "TELEGRAM_API_ID",
+            "TIKTOK_RESEARCH_TOKEN",
+        ):
             monkeypatch.delenv(platform_cfg, raising=False)
         monkeypatch.delenv("SOCIAL_MEDIA_ENABLED", raising=False)
 
@@ -737,6 +718,7 @@ class TestSocialMediaFixtures:
 # ---------------------------------------------------------------------------
 # 10. Escalation explanation
 # ---------------------------------------------------------------------------
+
 
 class TestEscalationExplanation:
     """build_escalation_explanation returns correct structure."""
@@ -787,9 +769,7 @@ class TestEscalationExplanation:
         # All 5 TRAP-lite flags must be present
         flag_names = {f["flag"] for f in explanation["flags_fired"]}
         expected_flags = {"fixation", "energy_burst", "leakage", "pathway", "targeting_specificity"}
-        assert flag_names == expected_flags, (
-            f"Expected all 5 flags, got {flag_names}"
-        )
+        assert flag_names == expected_flags, f"Expected all 5 flags, got {flag_names}"
 
         # Each flag has a description
         for flag in explanation["flags_fired"]:
@@ -800,9 +780,7 @@ class TestEscalationExplanation:
 
         # Recommended actions for CRITICAL
         actions_text = " ".join(explanation["recommended_actions"])
-        assert "IMMEDIATE" in actions_text, (
-            "CRITICAL tier must include IMMEDIATE action"
-        )
+        assert "IMMEDIATE" in actions_text, "CRITICAL tier must include IMMEDIATE action"
 
         # Summary is a human-readable string
         assert isinstance(explanation["summary"], str)
@@ -870,9 +848,7 @@ class TestEscalationExplanation:
         payload = response.json()
         # When there is assessment data, the escalation block must be present
         if payload.get("tas_score") is not None:
-            assert "escalation" in payload, (
-                "Assessment response must include 'escalation' block"
-            )
+            assert "escalation" in payload, "Assessment response must include 'escalation' block"
             esc = payload["escalation"]
             assert "escalation_tier" in esc
             assert "flags_fired" in esc

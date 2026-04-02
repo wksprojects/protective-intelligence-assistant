@@ -43,7 +43,7 @@ def _load_spacy_model():
         import spacy  # pylint: disable=import-outside-toplevel
 
         _SPACY_NLP = spacy.load("en_core_web_sm")
-    except Exception:
+    except (ImportError, OSError):
         _SPACY_NLP = None
     return _SPACY_NLP
 

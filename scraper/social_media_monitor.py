@@ -20,8 +20,11 @@ Configuration:
 """
 
 import json
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from analytics.dedup import check_duplicate
 from analytics.entity_extraction import extract_and_store_alert_entities
@@ -74,9 +77,7 @@ def _load_fixtures():
 def _ensure_social_source(conn, platform):
     """Ensure a source record exists for the social media platform."""
     source_name = f"Social Media: {platform.replace('_', ' ').title()}"
-    row = conn.execute(
-        "SELECT id FROM sources WHERE name = ?", (source_name,)
-    ).fetchone()
+    row = conn.execute("SELECT id FROM sources WHERE name = ?", (source_name,)).fetchone()
     if row:
         return row["id"]
     conn.execute(
@@ -109,14 +110,10 @@ def _ingest_social_post(conn, post, source_id):
     )
 
     # Dedup check
-    content_hash, duplicate_of = check_duplicate(
-        conn, post["title"], post.get("content", "")
-    )
+    content_hash, duplicate_of = check_duplicate(conn, post["title"], post.get("content", ""))
 
     # Check URL-based dedup
-    existing = conn.execute(
-        "SELECT id FROM alerts WHERE url = ?", (post["url"],)
-    ).fetchone()
+    existing = conn.execute("SELECT id FROM alerts WHERE url = ?", (post["url"],)).fetchone()
     if existing:
         return None
 
@@ -169,13 +166,15 @@ def run_social_media_monitor():
         # Demo mode: load fixtures
         posts = _load_fixtures()
         if not posts:
-            print("Social media monitor: no fixtures found, skipping.")
+            logger.info("Social media monitor: no fixtures found, skipping.")
             return {"ingested": 0, "mode": "disabled"}
     else:
         # Production mode: would fetch from configured platforms
         # For now, still load fixtures as placeholder
         posts = _load_fixtures()
-        print(f"Social media monitor: {len(posts)} posts from fixtures (live API not yet connected).")
+        logger.info(
+            f"Social media monitor: {len(posts)} posts from fixtures (live API not yet connected)."
+        )
 
     conn = get_connection()
     ingested = 0
@@ -190,5 +189,5 @@ def run_social_media_monitor():
     finally:
         conn.close()
 
-    print(f"Social media monitor: {ingested} new posts ingested.")
+    logger.info(f"Social media monitor: {ingested} new posts ingested.")
     return {"ingested": ingested, "mode": "fixture" if not any_platform else "live"}

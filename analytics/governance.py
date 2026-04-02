@@ -28,5 +28,7 @@ def redact_text(conn, text, redaction_terms=None):
     value = text or ""
     terms = redaction_terms if redaction_terms is not None else get_redaction_terms(conn)
     for term in terms:
-        value = re.sub(r"\b" + re.escape(term) + r"\b", "[REDACTED_PERSON]", value, flags=re.IGNORECASE)
+        value = re.sub(
+            r"\b" + re.escape(term) + r"\b", "[REDACTED_PERSON]", value, flags=re.IGNORECASE
+        )
     return value

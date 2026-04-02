@@ -23,8 +23,7 @@ def _find_fuzzy_matches(text, alias, threshold=0.90):
         return []
 
     token_spans = [
-        (match.group(0), match.start(), match.end())
-        for match in re.finditer(r"\b[\w'.-]+\b", text)
+        (match.group(0), match.start(), match.end()) for match in re.finditer(r"\b[\w'.-]+\b", text)
     ]
     text_tokens = [token for token, _, _ in token_spans]
     if len(text_tokens) < len(alias_tokens):

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import io
+import json
 import os
 import tempfile
 from contextlib import contextmanager, redirect_stdout
@@ -215,7 +215,9 @@ def _evaluate_case(case):
             for pair in (case.get("expected_linked_pairs") or [])
             if isinstance(pair, list) and len(pair) == 2
         }
-        all_pairs = {_norm_pair(left, right) for left, right in combinations(sorted(set(labels)), 2)}
+        all_pairs = {
+            _norm_pair(left, right) for left, right in combinations(sorted(set(labels)), 2)
+        }
 
         tp = len(predicted_pairs & expected_pairs)
         fp = len(predicted_pairs - expected_pairs)

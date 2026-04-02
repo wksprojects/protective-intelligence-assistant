@@ -152,7 +152,9 @@ def main() -> None:
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    threads = build_incident_threads(days=30, window_hours=168, min_cluster_size=2, limit=50, include_demo=False)
+    threads = build_incident_threads(
+        days=30, window_hours=168, min_cluster_size=2, limit=50, include_demo=False
+    )
     thread = _select_thread(threads) or {}
     insider_rows = list_insider_risk(limit=20)
     vendor_rows = list_supply_chain_risk(limit=20)

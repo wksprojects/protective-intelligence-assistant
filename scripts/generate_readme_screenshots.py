@@ -71,9 +71,9 @@ def _insert_external_user_signal(user_id):
         rss_source_id = conn.execute(
             "SELECT id FROM sources WHERE source_type = 'rss' ORDER BY id LIMIT 1"
         ).fetchone()["id"]
-        keyword_id = conn.execute(
-            "SELECT id FROM keywords WHERE term = 'death threat'"
-        ).fetchone()["id"]
+        keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()[
+            "id"
+        ]
         published_at = (utcnow() - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
         conn.execute(
             """INSERT INTO alerts
@@ -167,9 +167,13 @@ def _build_payloads():
     _insert_external_user_signal("emp-9901")
 
     insider_rows = list_insider_risk(limit=20)
-    insider_row = next((row for row in insider_rows if row.get("subject_id") == "EMP-9901"), insider_rows[0])
+    insider_row = next(
+        (row for row in insider_rows if row.get("subject_id") == "EMP-9901"), insider_rows[0]
+    )
     supply_rows = list_supply_chain_risk(limit=20)
-    supply_row = next((row for row in supply_rows if row.get("profile_id") == "ven-8472"), supply_rows[0])
+    supply_row = next(
+        (row for row in supply_rows if row.get("profile_id") == "ven-8472"), supply_rows[0]
+    )
     threads = build_incident_threads(days=30, window_hours=168, min_cluster_size=2, limit=20)
 
     ranked = []
@@ -272,7 +276,9 @@ def _render_json_snapshot(path, title, subtitle, payload):
 
     image = Image.new("RGB", (width, height), "#0A1020")
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((40, 40, width - 40, height - 40), radius=24, fill="#111A2E", outline="#3B4E70", width=3)
+    draw.rounded_rectangle(
+        (40, 40, width - 40, height - 40), radius=24, fill="#111A2E", outline="#3B4E70", width=3
+    )
     draw.text((80, 78), title, fill="#F3F6FF", font=title_font)
     draw.text((80, 138), subtitle, fill="#AFC2E7", font=subtitle_font)
     draw.multiline_text(

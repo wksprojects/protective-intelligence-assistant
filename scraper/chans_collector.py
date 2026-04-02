@@ -1,13 +1,21 @@
 """Prototype chans/fringe-board collector (fixture-first, policy-gated)."""
 
 import json
+import logging
 import os
+import sqlite3
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from analytics.dedup import check_duplicate
 from analytics.entity_extraction import extract_and_store_alert_entities
 from analytics.ep_pipeline import process_ep_signals
-from analytics.risk_scoring import build_frequency_snapshot, increment_keyword_frequency, score_alert
+from analytics.risk_scoring import (
+    build_frequency_snapshot,
+    increment_keyword_frequency,
+    score_alert,
+)
 from analytics.utils import utcnow
 from database.init_db import get_connection
 from monitoring.collector_health import CollectorHealthObserver
@@ -81,18 +89,20 @@ def run_chans_collector(frequency_snapshot=None):
         if not _enabled():
             mark_source_skipped(conn, source_id, "PI_ENABLE_CHANS_COLLECTOR not set")
             conn.commit()
-            print("Chans collector skipped (PI_ENABLE_CHANS_COLLECTOR not set).")
+            logger.info("Chans collector skipped (PI_ENABLE_CHANS_COLLECTOR not set).")
             return 0
 
         posts = _load_fixtures()
         if not posts:
             mark_source_failure(conn, source_id, "chans fixtures missing or empty")
             conn.commit()
-            print("Chans collector skipped (no fixtures found).")
+            logger.info("Chans collector skipped (no fixtures found).")
             return 0
 
         active_keywords = get_active_keywords(conn)
-        keyword_cache = {row["term"].strip().lower(): row for row in active_keywords if row.get("term")}
+        keyword_cache = {
+            row["term"].strip().lower(): row for row in active_keywords if row.get("term")
+        }
         if frequency_snapshot is None:
             frequency_snapshot = build_frequency_snapshot(
                 conn,
@@ -173,11 +183,13 @@ def run_chans_collector(frequency_snapshot=None):
                 created += 1
 
         conn.commit()
-        print(f"Chans collector complete. {created} new alerts, {duplicates} duplicates skipped.")
+        logger.info(
+            f"Chans collector complete. {created} new alerts, {duplicates} duplicates skipped."
+        )
         return created
-    except Exception as exc:
+    except (sqlite3.DatabaseError, json.JSONDecodeError, KeyError, ValueError, OSError) as exc:
         conn.commit()
-        print(f"Chans collector failed: {exc}")
+        logger.error(f"Chans collector failed: {exc}")
         return 0
     finally:
         conn.close()

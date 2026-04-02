@@ -151,7 +151,9 @@ def test_source_presets_endpoint_returns_location_previews(client):
     assert isinstance(payload["presets"], list)
     assert len(payload["presets"]) > 0
 
-    location_preset = next((item for item in payload["presets"] if item["scope"] == "location"), None)
+    location_preset = next(
+        (item for item in payload["presets"] if item["scope"] == "location"), None
+    )
     assert location_preset is not None
     assert len(location_preset["preview"]) > 0
     first_preview = location_preset["preview"][0]
@@ -199,7 +201,9 @@ def test_soi_threads_endpoint_clusters_related_alerts(client):
     reddit_source = conn.execute(
         "SELECT id FROM sources WHERE source_type = 'reddit' AND active = 1 ORDER BY id LIMIT 1"
     ).fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()[
+        "id"
+    ]
 
     first_alert = _insert_alert(
         conn,
@@ -261,8 +265,12 @@ def test_signal_quality_endpoint_aggregates_precision(client):
         "SELECT id FROM sources WHERE id != ? ORDER BY id LIMIT 1",
         (source_one,),
     ).fetchone()["id"]
-    keyword_pi = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()["id"]
-    keyword_travel = conn.execute("SELECT id FROM keywords WHERE term = 'travel advisory'").fetchone()["id"]
+    keyword_pi = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()[
+        "id"
+    ]
+    keyword_travel = conn.execute(
+        "SELECT id FROM keywords WHERE term = 'travel advisory'"
+    ).fetchone()["id"]
 
     alert_tp = _insert_alert(
         conn,
@@ -322,7 +330,9 @@ def test_signal_quality_endpoint_aggregates_precision(client):
 def test_signal_quality_uses_latest_disposition_per_alert(client):
     conn = get_connection()
     source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()[
+        "id"
+    ]
     alert_id = _insert_alert(
         conn,
         source_id=source_id,

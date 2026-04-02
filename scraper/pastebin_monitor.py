@@ -1,10 +1,15 @@
-import requests
-from bs4 import BeautifulSoup
+import logging
+import sqlite3
 import time
 
+import requests
+
+logger = logging.getLogger(__name__)
+from bs4 import BeautifulSoup
+
 from analytics.dedup import check_duplicate
-from analytics.ep_pipeline import process_ep_signals
 from analytics.entity_extraction import extract_and_store_alert_entities
+from analytics.ep_pipeline import process_ep_signals
 from analytics.risk_scoring import (
     build_frequency_snapshot,
     increment_keyword_frequency,
@@ -28,7 +33,7 @@ def fetch_recent_pastes():
         soup = BeautifulSoup(response.text, "html.parser")
         table = soup.find("table", class_="maintable")
         if not table:
-            print("No paste table found.")
+            logger.warning("No paste table found.")
             return entries
 
         rows = table.find_all("tr")[1:]  # skip header
@@ -47,7 +52,7 @@ def fetch_recent_pastes():
                         }
                     )
     except requests.RequestException as e:
-        print(f"Error fetching pastebin archive: {e}")
+        logger.error(f"Error fetching pastebin archive: {e}")
 
     return entries
 
@@ -61,7 +66,7 @@ def fetch_paste_content(url):
         response.raise_for_status()
         return response.text[:5000]
     except requests.RequestException as e:
-        print(f"Error fetching paste content: {e}")
+        logger.error(f"Error fetching paste content: {e}")
         return ""
 
 
@@ -94,12 +99,12 @@ def run_pastebin_scraper(frequency_snapshot=None):
         new_alerts = 0
         duplicates = 0
 
-        print("Scraping: Pastebin Archive")
+        logger.info("Scraping: Pastebin Archive")
         pastes = fetch_recent_pastes()
         if not pastes:
             mark_source_failure(conn, source_id, "pastebin archive returned no pastes")
             conn.commit()
-            print("Pastebin scrape complete. 0 new alerts, 0 duplicates skipped.")
+            logger.info("Pastebin scrape complete. 0 new alerts, 0 duplicates skipped.")
             return 0
 
         for paste in pastes[:20]:  # limit to avoid rate limiting
@@ -162,13 +167,15 @@ def run_pastebin_scraper(frequency_snapshot=None):
         elapsed_ms = (time.perf_counter() - started_at) * 1000.0
         mark_source_success(conn, source_id, collection_count=new_alerts, latency_ms=elapsed_ms)
         conn.commit()
-        print(f"Pastebin scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped.")
+        logger.info(
+            f"Pastebin scrape complete. {new_alerts} new alerts, {duplicates} duplicates skipped."
+        )
         return new_alerts
-    except Exception as exc:
+    except (requests.RequestException, sqlite3.DatabaseError, OSError) as exc:
         source_id = ensure_pastebin_source(conn)
         mark_source_failure(conn, source_id, f"pastebin collector error: {exc!r}")
         conn.commit()
-        print(f"Pastebin scrape failed: {exc}")
+        logger.error(f"Pastebin scrape failed: {exc}")
         return 0
     finally:
         conn.close()

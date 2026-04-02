@@ -161,7 +161,9 @@ def _upcoming_event_watch(conn, include_demo=False):
             event_lat = float(event["lat"])
             event_lon = float(event["lon"])
             for row in recent_alert_locations:
-                distance = _haversine_miles(event_lat, event_lon, float(row["lat"]), float(row["lon"]))
+                distance = _haversine_miles(
+                    event_lat, event_lon, float(row["lat"]), float(row["lon"])
+                )
                 if distance <= 25.0:
                     alert_id = int(row["alert_id"])
                     score = float(row["ors_score"] or 0.0)
@@ -276,10 +278,16 @@ def generate_daily_report(report_date=None, include_demo=False):
             report_date = utcnow().strftime("%Y-%m-%d")
 
         day_start = report_date
-        day_end = (datetime.strptime(report_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-        prev_day = (datetime.strptime(report_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        day_end = (datetime.strptime(report_date, "%Y-%m-%d") + timedelta(days=1)).strftime(
+            "%Y-%m-%d"
+        )
+        prev_day = (datetime.strptime(report_date, "%Y-%m-%d") - timedelta(days=1)).strftime(
+            "%Y-%m-%d"
+        )
 
-        top_ops = _top_operational_alerts(conn, day_start, day_end, limit=10, include_demo=include_demo)
+        top_ops = _top_operational_alerts(
+            conn, day_start, day_end, limit=10, include_demo=include_demo
+        )
         severity_map = _severity_counts(conn, day_start, day_end, include_demo=include_demo)
         prev_severity_map = _severity_counts(conn, prev_day, report_date, include_demo=include_demo)
         total = sum(severity_map.values())

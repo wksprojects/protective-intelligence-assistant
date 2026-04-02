@@ -4,10 +4,14 @@ Runs only when ACLED credentials are present in environment.
 If not configured, it no-ops safely.
 """
 
+import logging
 import os
+import sqlite3
 import time
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 from analytics.dedup import check_duplicate
 from analytics.entity_extraction import extract_and_store_alert_entities
@@ -26,7 +30,7 @@ def _configured():
 
 def run_acled_collector(frequency_snapshot=None):
     if not _configured():
-        print("ACLED collector skipped (ACLED_API_KEY/ACLED_EMAIL not configured).")
+        logger.info("ACLED collector skipped (ACLED_API_KEY/ACLED_EMAIL not configured).")
         conn = get_connection()
         try:
             source = conn.execute(
@@ -58,11 +62,13 @@ def run_acled_collector(frequency_snapshot=None):
             )
             source_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-        preferred_keyword = next((k for k in keywords if k.get("term", "").lower() == "protest"), None)
+        preferred_keyword = next(
+            (k for k in keywords if k.get("term", "").lower() == "protest"), None
+        )
         if preferred_keyword is None and keywords:
             preferred_keyword = keywords[0]
         if preferred_keyword is None:
-            print("ACLED collector skipped (no active keywords).")
+            logger.info("ACLED collector skipped (no active keywords).")
             return 0
 
         params = {
@@ -109,7 +115,9 @@ def run_acled_collector(frequency_snapshot=None):
             if duplicate_of is not None:
                 continue
 
-            score_args = frequency_snapshot.get(preferred_keyword["id"]) if frequency_snapshot else None
+            score_args = (
+                frequency_snapshot.get(preferred_keyword["id"]) if frequency_snapshot else None
+            )
             baseline = score_alert(
                 conn,
                 alert_id,
@@ -135,13 +143,13 @@ def run_acled_collector(frequency_snapshot=None):
         elapsed_ms = (time.perf_counter() - started_at) * 1000.0
         mark_source_success(conn, source_id, collection_count=created, latency_ms=elapsed_ms)
         conn.commit()
-        print(f"ACLED collector complete. {created} new alerts.")
+        logger.info(f"ACLED collector complete. {created} new alerts.")
         return created
-    except Exception as exc:
+    except (requests.RequestException, sqlite3.DatabaseError, KeyError, ValueError, OSError) as exc:
         if source_id is not None:
             mark_source_failure(conn, source_id, f"ACLED collector error: {exc!r}")
             conn.commit()
-        print(f"ACLED collector failed: {exc}")
+        logger.error(f"ACLED collector failed: {exc}")
         return 0
     finally:
         conn.close()

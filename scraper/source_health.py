@@ -84,9 +84,7 @@ def mark_source_failure(conn, source_id, error_message):
     disable_now = _auto_disable_enabled() and next_fail_streak >= _failure_threshold()
     disabled_reason = None
     if disable_now:
-        disabled_reason = (
-            f"auto-disabled after {next_fail_streak} consecutive failures at {now}"
-        )
+        disabled_reason = f"auto-disabled after {next_fail_streak} consecutive failures at {now}"
 
     conn.execute(
         """UPDATE sources

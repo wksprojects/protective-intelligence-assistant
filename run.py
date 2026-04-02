@@ -21,10 +21,14 @@ Usage:
     python run.py all         Start API + Dashboard (requires separate terminal for each)
 """
 
+import logging
 import os
 import subprocess
 import sys
 
+logger = logging.getLogger(__name__)
+
+from collectors import run_all_collectors
 from database.init_db import (
     get_connection,
     init_db,
@@ -37,7 +41,6 @@ from database.init_db import (
     seed_default_sources,
     seed_threat_actors,
 )
-from collectors import run_all_collectors
 
 
 def _truthy_env(value):
@@ -98,7 +101,7 @@ def purge_demo_content():
     finally:
         conn.close()
 
-    print(
+    logger.info(
         "Demo purge complete:"
         f" alerts={max(deleted_alerts or 0, 0)}"
         f" sources={max(deleted_sources or 0, 0)}"
@@ -108,7 +111,7 @@ def purge_demo_content():
 
 def main():
     if len(sys.argv) < 2:
-        print(__doc__)
+        logger.info(__doc__)
         return
 
     command = sys.argv[1].lower()
@@ -119,9 +122,13 @@ def main():
         conn = get_connection()
         source_count = conn.execute("SELECT COUNT(*) AS count FROM sources").fetchone()["count"]
         keyword_count = conn.execute("SELECT COUNT(*) AS count FROM keywords").fetchone()["count"]
-        actor_count = conn.execute("SELECT COUNT(*) AS count FROM threat_actors").fetchone()["count"]
+        actor_count = conn.execute("SELECT COUNT(*) AS count FROM threat_actors").fetchone()[
+            "count"
+        ]
         poi_count = conn.execute("SELECT COUNT(*) AS count FROM pois").fetchone()["count"]
-        loc_count = conn.execute("SELECT COUNT(*) AS count FROM protected_locations").fetchone()["count"]
+        loc_count = conn.execute("SELECT COUNT(*) AS count FROM protected_locations").fetchone()[
+            "count"
+        ]
         event_count = conn.execute("SELECT COUNT(*) AS count FROM events").fetchone()["count"]
         conn.close()
 
@@ -220,19 +227,19 @@ def main():
         seed_default_events()
         seed_threat_actors()
         result = run_demo_pack()
-        print("Demo artifacts generated:")
-        print(f"  - {result['report_path']}")
-        print(f"  - {result['brief_path']}")
+        logger.info("Demo artifacts generated:")
+        logger.info(f"  - {result['report_path']}")
+        logger.info(f"  - {result['brief_path']}")
 
     elif command == "all":
-        print("Run in separate terminals:")
-        print("  Terminal 1: python run.py api")
-        print("  Terminal 2: python run.py dashboard")
-        print("\nOr use: docker compose up")
+        logger.info("Run in separate terminals:")
+        logger.info("  Terminal 1: python run.py api")
+        logger.info("  Terminal 2: python run.py dashboard")
+        logger.info("Or use: docker compose up")
 
     else:
-        print(f"Unknown command: {command}")
-        print(__doc__)
+        logger.warning(f"Unknown command: {command}")
+        logger.info(__doc__)
 
 
 if __name__ == "__main__":

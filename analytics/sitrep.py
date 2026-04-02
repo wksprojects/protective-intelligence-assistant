@@ -22,16 +22,36 @@ def _load_escalation_tiers():
         with open(WATCHLIST_CONFIG_PATH, "r") as fh:
             config = yaml.safe_load(fh) or {}
         return config.get("escalation_tiers", [])
-    except Exception:
+    except (OSError, yaml.YAMLError, AttributeError):
         return [
-            {"threshold": 85, "label": "CRITICAL", "notify": ["detail_leader", "intel_manager"],
-             "action": "Immediate briefing required.", "response_window": "30 minutes"},
-            {"threshold": 65, "label": "ELEVATED", "notify": ["intel_analyst"],
-             "action": "Enhanced monitoring. Assess within 4 hours.", "response_window": "4 hours"},
-            {"threshold": 40, "label": "ROUTINE", "notify": [],
-             "action": "Log and monitor.", "response_window": "24 hours"},
-            {"threshold": 0, "label": "LOW", "notify": [],
-             "action": "No immediate action.", "response_window": "N/A"},
+            {
+                "threshold": 85,
+                "label": "CRITICAL",
+                "notify": ["detail_leader", "intel_manager"],
+                "action": "Immediate briefing required.",
+                "response_window": "30 minutes",
+            },
+            {
+                "threshold": 65,
+                "label": "ELEVATED",
+                "notify": ["intel_analyst"],
+                "action": "Enhanced monitoring. Assess within 4 hours.",
+                "response_window": "4 hours",
+            },
+            {
+                "threshold": 40,
+                "label": "ROUTINE",
+                "notify": [],
+                "action": "Log and monitor.",
+                "response_window": "24 hours",
+            },
+            {
+                "threshold": 0,
+                "label": "LOW",
+                "notify": [],
+                "action": "No immediate action.",
+                "response_window": "N/A",
+            },
         ]
 
 
@@ -39,12 +59,19 @@ def _resolve_escalation_tier(score):
     """Determine escalation tier for a given score."""
     tiers = _load_escalation_tiers()
     if not tiers:
-        return {"label": "ROUTINE", "notify": [], "action": "Monitor.", "response_window": "24 hours"}
+        return {
+            "label": "ROUTINE",
+            "notify": [],
+            "action": "Monitor.",
+            "response_window": "24 hours",
+        }
     tiers_sorted = sorted(tiers, key=lambda t: t.get("threshold", 0), reverse=True)
     for tier in tiers_sorted:
         if score >= tier.get("threshold", 0):
             return tier
-    return tiers_sorted[-1] if tiers_sorted else {"label": "LOW", "notify": [], "action": "Archive."}
+    return (
+        tiers_sorted[-1] if tiers_sorted else {"label": "LOW", "notify": [], "action": "Archive."}
+    )
 
 
 def _build_sitrep_markdown(sitrep_data):
@@ -134,7 +161,7 @@ def generate_sitrep_for_poi_escalation(conn, poi_id, assessment):
     if flags_fired:
         threat_assessment += f"Active behavioral indicators: {', '.join(flags_fired)}. "
     if excerpts:
-        threat_assessment += f"Key evidence: \"{excerpts[0][:200]}\""
+        threat_assessment += f'Key evidence: "{excerpts[0][:200]}"'
 
     actions = [tier.get("action", "Monitor.")]
     if tas_score >= 65:

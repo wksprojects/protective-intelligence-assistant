@@ -5,8 +5,11 @@ integration point in the scraper pipeline while policy/legal review and source
 validation are completed.
 """
 
+import logging
 import os
 import time
+
+logger = logging.getLogger(__name__)
 
 from database.init_db import get_connection
 from scraper.source_health import mark_source_failure, mark_source_skipped
@@ -37,7 +40,7 @@ def run_darkweb_collector(frequency_snapshot=None):
             for source_id in source_ids:
                 mark_source_skipped(conn, source_id, "PI_ENABLE_DARKWEB_COLLECTOR not set")
             conn.commit()
-            print("Dark-web collector skipped (PI_ENABLE_DARKWEB_COLLECTOR not set).")
+            logger.info("Dark-web collector skipped (PI_ENABLE_DARKWEB_COLLECTOR not set).")
             return 0
 
         for source_id in source_ids:
@@ -55,7 +58,7 @@ def run_darkweb_collector(frequency_snapshot=None):
     finally:
         conn.close()
 
-    print(
+    logger.warning(
         "Dark-web collector is enabled but not implemented. "
         "Complete legal/ToS review and connector hardening before activation."
     )

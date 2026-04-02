@@ -93,7 +93,7 @@ def test_supply_chain_scrape_and_analytics_endpoint(client, monkeypatch):
 
 def test_insider_scrape_returns_503_on_collector_error(client, monkeypatch):
     def _boom(*args, **kwargs):
-        raise RuntimeError("synthetic insider failure")
+        raise ValueError("synthetic insider failure")
 
     monkeypatch.setattr("collectors.insider_telemetry.ingest_insider_events", _boom)
     response = client.post("/scrape/insider")
@@ -111,7 +111,7 @@ def test_insider_scrape_returns_503_on_collector_error(client, monkeypatch):
 
 def test_supply_chain_scrape_returns_503_on_collector_error(client, monkeypatch):
     def _boom(*args, **kwargs):
-        raise RuntimeError("synthetic supply-chain failure")
+        raise ValueError("synthetic supply-chain failure")
 
     monkeypatch.setenv("PI_ENABLE_SUPPLY_CHAIN", "1")
     monkeypatch.setattr("collectors.supply_chain.ingest_supply_chain_profiles", _boom)
@@ -149,7 +149,9 @@ def test_insider_threads_converge_with_external_signal(client):
     rss_source_id = conn.execute(
         "SELECT id FROM sources WHERE source_type = 'rss' ORDER BY id LIMIT 1"
     ).fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()[
+        "id"
+    ]
     alert_id = _insert_alert(
         conn,
         source_id=rss_source_id,
@@ -210,7 +212,9 @@ def test_soi_threads_link_user_and_vendor_entities(client, monkeypatch):
     rss_source_id = conn.execute(
         "SELECT id FROM sources WHERE source_type = 'rss' ORDER BY id LIMIT 1"
     ).fetchone()["id"]
-    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()["id"]
+    keyword_id = conn.execute("SELECT id FROM keywords WHERE term = 'death threat'").fetchone()[
+        "id"
+    ]
     alert_id = _insert_alert(
         conn,
         source_id=rss_source_id,

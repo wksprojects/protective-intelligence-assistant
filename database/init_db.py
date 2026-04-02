@@ -1,9 +1,12 @@
+import logging
 import os
 import sqlite3
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus, urlencode
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_DB_PATH = os.path.join(os.path.dirname(__file__), "protective_intel.db")
 LEGACY_DB_PATH = os.path.join(os.path.dirname(__file__), "osint_monitor.db")
@@ -26,7 +29,7 @@ SOURCE_DEFAULT_CREDIBILITY = {
 GDELT_DOC_API_BASE_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 DEFAULT_GDELT_PI_EP_QUERY = (
     '("threat to CEO" OR swatting OR doxxing OR "death threat" OR kidnapping OR "bomb threat" OR protest OR unrest) '
-    'AND (executive OR CEO OR headquarters OR office OR venue)'
+    "AND (executive OR CEO OR headquarters OR office OR venue)"
 )
 
 KEYWORD_CATEGORY_ALIASES = {
@@ -64,7 +67,7 @@ def init_db():
         conn.executescript(f.read())
     conn.commit()
     conn.close()
-    print(f"Database initialized at {_resolve_db_path()}")
+    logger.info(f"Database initialized at {_resolve_db_path()}")
 
 
 def _resolve_db_path():
@@ -154,7 +157,9 @@ def _canonicalize_assessment_window(start_dt, end_dt):
     if end_dt.time() == datetime.min.time():
         canonical_end = end_dt.replace(hour=0, minute=0, second=0, microsecond=0)
     else:
-        canonical_end = end_dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        canonical_end = end_dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(
+            days=1
+        )
 
     if start_dt is not None:
         raw_days = (end_dt - start_dt).total_seconds() / 86400.0
@@ -627,7 +632,9 @@ def migrate_schema():
     conn.execute("UPDATE sources SET fail_streak = 0 WHERE fail_streak IS NULL")
     conn.execute("UPDATE sources SET last_status = 'unknown' WHERE last_status IS NULL")
     conn.execute("UPDATE alerts SET risk_score = 0.0 WHERE risk_score IS NULL")
-    conn.execute("UPDATE alerts SET ors_score = risk_score WHERE ors_score IS NULL OR ors_score = 0.0")
+    conn.execute(
+        "UPDATE alerts SET ors_score = risk_score WHERE ors_score IS NULL OR ors_score = 0.0"
+    )
     conn.execute("UPDATE alerts SET tas_score = 0.0 WHERE tas_score IS NULL")
     conn.execute("UPDATE alerts SET published_at = created_at WHERE published_at IS NULL")
     conn.commit()
@@ -801,9 +808,7 @@ def load_watchlist_yaml(config_path=None):
                     continue
                 seen_terms.add(dedupe_key)
                 weight = max(0.1, min(5.0, weight))
-                collected.append(
-                    {"term": term_text, "category": category, "weight": weight}
-                )
+                collected.append({"term": term_text, "category": category, "weight": weight})
         return collected
 
     keyword_items = _collect_keywords(payload.get("keywords", {}))
@@ -928,8 +933,18 @@ def seed_default_sources():
         seed_origin = f"config ({watchlist['path']})"
     else:
         sources = [
-            ("State Dept Travel Alerts/Warnings", "https://travel.state.gov/_res/rss/TAsTWs.xml", "rss", 0.9),
-            ("CDC Travel Health Notices", "https://wwwnc.cdc.gov/travel/rss/notices.xml", "rss", 0.85),
+            (
+                "State Dept Travel Alerts/Warnings",
+                "https://travel.state.gov/_res/rss/TAsTWs.xml",
+                "rss",
+                0.9,
+            ),
+            (
+                "CDC Travel Health Notices",
+                "https://wwwnc.cdc.gov/travel/rss/notices.xml",
+                "rss",
+                0.85,
+            ),
             (
                 "GDELT PI/EP Watch",
                 build_gdelt_rss_url(DEFAULT_GDELT_PI_EP_QUERY),
@@ -968,7 +983,7 @@ def seed_default_sources():
     )
     conn.commit()
     conn.close()
-    print(f"Default sources seeded from {seed_origin}.")
+    logger.info(f"Default sources seeded from {seed_origin}.")
 
 
 def seed_default_keywords():
@@ -1022,7 +1037,7 @@ def seed_default_keywords():
                 pass
     conn.commit()
     conn.close()
-    print(f"Default keywords seeded from {seed_origin}.")
+    logger.info(f"Default keywords seeded from {seed_origin}.")
 
 
 def seed_default_pois():
@@ -1113,7 +1128,7 @@ def seed_default_pois():
             )
     conn.commit()
     conn.close()
-    print(f"Default POIs seeded from {seed_origin}.")
+    logger.info(f"Default POIs seeded from {seed_origin}.")
 
 
 def seed_default_protected_locations():
@@ -1219,7 +1234,7 @@ def seed_default_protected_locations():
             )
     conn.commit()
     conn.close()
-    print(f"Protected locations seeded from {seed_origin}.")
+    logger.info(f"Protected locations seeded from {seed_origin}.")
 
 
 def seed_default_events():
@@ -1275,7 +1290,9 @@ def seed_default_events():
     for event in events:
         poi_id = None
         if event.get("poi_name"):
-            row = conn.execute("SELECT id FROM pois WHERE name = ?", (event["poi_name"],)).fetchone()
+            row = conn.execute(
+                "SELECT id FROM pois WHERE name = ?", (event["poi_name"],)
+            ).fetchone()
             poi_id = row["id"] if row else None
 
         existing = conn.execute(
@@ -1321,7 +1338,7 @@ def seed_default_events():
             )
     conn.commit()
     conn.close()
-    print(f"Events seeded from {seed_origin}.")
+    logger.info(f"Events seeded from {seed_origin}.")
 
 
 def seed_threat_actors():
@@ -1332,7 +1349,7 @@ def seed_threat_actors():
     actors = []
     if not actors:
         conn.close()
-        print("Threat actor seed list is empty; skipping.")
+        logger.info("Threat actor seed list is empty; skipping.")
         return
     for name, aliases, description in actors:
         existing = conn.execute("SELECT id FROM threat_actors WHERE name = ?", (name,)).fetchone()
@@ -1343,14 +1360,16 @@ def seed_threat_actors():
             )
     conn.commit()
     conn.close()
-    print("Threat actors seeded.")
+    logger.info("Threat actors seeded.")
 
 
 def purge_raw_content(retention_days=None):
     conn = get_connection()
     try:
-        days_raw = retention_days if retention_days is not None else os.getenv(
-            "RAW_CONTENT_RETENTION_DAYS", "30"
+        days_raw = (
+            retention_days
+            if retention_days is not None
+            else os.getenv("RAW_CONTENT_RETENTION_DAYS", "30")
         )
         days = max(1, int(days_raw))
     except (TypeError, ValueError):
@@ -1369,7 +1388,7 @@ def purge_raw_content(retention_days=None):
     )
     conn.commit()
     conn.close()
-    print(f"Purged raw content older than {days} days ({result.rowcount or 0} rows).")
+    logger.info(f"Purged raw content older than {days} days ({result.rowcount or 0} rows).")
 
 
 if __name__ == "__main__":
@@ -1381,4 +1400,4 @@ if __name__ == "__main__":
     seed_default_protected_locations()
     seed_default_events()
     seed_threat_actors()
-    print("Setup complete.")
+    logger.info("Setup complete.")

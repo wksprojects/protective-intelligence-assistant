@@ -95,7 +95,9 @@ def _communications_signal(event: dict) -> float:
     )
     contacts_delta = _clamp((new_external_contacts / baseline_external_contacts - 1.0) / 6.0)
     encrypted_channels = _clamp(_safe_float(comms.get("new_encrypted_channels")) / 4.0)
-    return _clamp((0.40 * after_hours_ratio) + (0.35 * contacts_delta) + (0.25 * encrypted_channels))
+    return _clamp(
+        (0.40 * after_hours_ratio) + (0.35 * contacts_delta) + (0.25 * encrypted_channels)
+    )
 
 
 def _access_escalation_signal(event: dict) -> float:
@@ -256,12 +258,15 @@ def build_subject_assessments(scored_events: list[dict]) -> list[dict]:
 
     assessments = []
     for subject_id, events in grouped.items():
-        events_sorted = sorted(events, key=lambda row: parse_timestamp(row.get("event_ts")) or row.get("event_ts"))
+        events_sorted = sorted(
+            events, key=lambda row: parse_timestamp(row.get("event_ts")) or row.get("event_ts")
+        )
         scores = [float(event.get("event_score") or 0.0) for event in events_sorted]
         signal_means = {}
         for signal_name in SIGNAL_WEIGHTS.keys():
             signal_means[signal_name] = round(
-                sum(float(event["signals"][signal_name]) for event in events_sorted) / max(1, len(events_sorted)),
+                sum(float(event["signals"][signal_name]) for event in events_sorted)
+                / max(1, len(events_sorted)),
                 4,
             )
 

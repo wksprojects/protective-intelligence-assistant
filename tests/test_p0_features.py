@@ -2,10 +2,10 @@ import math
 from datetime import timedelta
 
 from analytics.entity_extraction import extract_and_store_alert_entities
-from analytics.utils import utcnow
 from analytics.extraction import extract, extract_and_store_alert_artifacts
 from analytics.risk_scoring import score_alert
 from analytics.uncertainty import score_distribution
+from analytics.utils import utcnow
 from database.init_db import get_connection
 
 

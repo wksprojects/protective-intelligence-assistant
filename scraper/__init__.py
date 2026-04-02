@@ -9,7 +9,11 @@ Architecture:
 """
 
 import asyncio
+import logging
+import sqlite3
 import time
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 
 from analytics.entity_extraction import extract_and_store_alert_entities
@@ -66,8 +70,8 @@ def _record_scrape_run(scraper_type, started_at, total_alerts, status="completed
         )
         conn.commit()
         conn.close()
-    except Exception as e:
-        print(f"Warning: Could not record scrape run: {e}")
+    except (sqlite3.DatabaseError, OSError) as e:
+        logger.warning(f"Could not record scrape run: {e}")
 
 
 def _build_run_frequency_snapshot():
@@ -121,13 +125,13 @@ async def _fetch_url_async(
                     allow_redirects=True,
                 ) as resp:
                     if resp.status == 404:
-                        print(f"Async fetch HTTP 404 for {url}")
+                        logger.warning(f"Async fetch HTTP 404 for {url}")
                         return None
                     if resp.status in {429, 500, 502, 503, 504} and attempt < attempts:
                         await asyncio.sleep(0.75 * attempt)
                         continue
                     if resp.status >= 400:
-                        print(f"Async fetch HTTP {resp.status} for {url}")
+                        logger.warning(f"Async fetch HTTP {resp.status} for {url}")
                         return None
                     text = await resp.text()
                     if text:
@@ -136,14 +140,11 @@ async def _fetch_url_async(
                         await asyncio.sleep(0.75 * attempt)
                         continue
                     return None
-        except Exception as e:
+        except (OSError, asyncio.TimeoutError) as e:
             if attempt < attempts:
                 await asyncio.sleep(0.75 * attempt)
                 continue
-            print(
-                f"Async fetch error for {url}: "
-                f"{type(e).__name__}: {e!r}"
-            )
+            logger.error(f"Async fetch error for {url}: " f"{type(e).__name__}: {e!r}")
             return None
     return None
 
@@ -199,7 +200,7 @@ async def run_rss_scraper_async(frequency_snapshot=None):
         parsed_entries = []
         failure_reason = "no feed entries returned"
         if raw_text:
-            print(f"Processing: {source['name']}")
+            logger.info(f"Processing: {source['name']}")
             feed = feedparser.parse(raw_text)
             parsed_entries = [
                 {
@@ -212,25 +213,27 @@ async def run_rss_scraper_async(frequency_snapshot=None):
             ]
             if not parsed_entries:
                 failure_reason = "async parse produced no entries"
-                print(
+                logger.warning(
                     f"Async parse returned no entries for {source['name']}; "
                     "trying sync RSS fallback."
                 )
         if not parsed_entries:
             if not raw_text:
                 failure_reason = "async fetch failed"
-                print(f"Async fetch failed for {source['name']}; trying sync RSS fallback.")
+                logger.warning(
+                    f"Async fetch failed for {source['name']}; trying sync RSS fallback."
+                )
             try:
                 parsed_entries = fetch_rss_feed(source["url"])
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 failure_reason = f"sync fallback exception: {type(e).__name__}: {e}"
                 mark_source_failure(conn, source["id"], failure_reason)
-                print(f"Skipping {source['name']} (fallback failed): {e}")
+                logger.error(f"Skipping {source['name']} (fallback failed): {e}")
                 continue
             if not parsed_entries:
                 failure_reason = "sync fallback returned no entries"
                 mark_source_failure(conn, source["id"], failure_reason)
-                print(f"Skipping {source['name']} (no entries from fallback)")
+                logger.warning(f"Skipping {source['name']} (no entries from fallback)")
                 continue
 
         for entry in parsed_entries:
@@ -299,7 +302,7 @@ async def run_rss_scraper_async(frequency_snapshot=None):
 
     conn.commit()
     conn.close()
-    print(f"Async RSS scrape complete. {new_alerts} new alerts, {duplicates} duplicates.")
+    logger.info(f"Async RSS scrape complete. {new_alerts} new alerts, {duplicates} duplicates.")
     return new_alerts
 
 
@@ -338,15 +341,15 @@ async def run_reddit_scraper_async(frequency_snapshot=None):
         source_new_alerts = 0
         if not raw_text:
             mark_source_failure(conn, source["id"], "async fetch failed")
-            print(f"Skipping {source['name']} (fetch failed)")
+            logger.warning(f"Skipping {source['name']} (fetch failed)")
             continue
 
-        print(f"Processing: {source['name']}")
+        logger.info(f"Processing: {source['name']}")
         feed = feedparser.parse(raw_text)
         entries = list(feed.entries or [])
         if not entries:
             mark_source_failure(conn, source["id"], "async parse produced no entries")
-            print(f"Skipping {source['name']} (no entries)")
+            logger.warning(f"Skipping {source['name']} (no entries)")
             continue
         for entry in entries:
             title = entry.get("title", "")
@@ -414,7 +417,7 @@ async def run_reddit_scraper_async(frequency_snapshot=None):
 
     conn.commit()
     conn.close()
-    print(f"Async Reddit scrape complete. {new_alerts} new alerts, {duplicates} duplicates.")
+    logger.info(f"Async Reddit scrape complete. {new_alerts} new alerts, {duplicates} duplicates.")
     return new_alerts
 
 
@@ -461,10 +464,10 @@ def run_all_scrapers():
 
     try:
         if ASYNC_AVAILABLE:
-            print("Running scrapers (async mode)...")
+            logger.info("Running scrapers (async mode)...")
             total = asyncio.run(run_all_scrapers_async())
         else:
-            print("Running scrapers (sync mode — install aiohttp for async)...")
+            logger.info("Running scrapers (sync mode — install aiohttp for async)...")
             frequency_snapshot = _build_run_frequency_snapshot()
             total += run_rss_scraper(frequency_snapshot=frequency_snapshot)
             total += run_reddit_scraper(frequency_snapshot=frequency_snapshot)
@@ -473,11 +476,11 @@ def run_all_scrapers():
             total += run_darkweb_collector(frequency_snapshot=frequency_snapshot)
             total += run_telegram_collector(frequency_snapshot=frequency_snapshot)
             total += run_chans_collector(frequency_snapshot=frequency_snapshot)
-    except Exception as e:
-        print(f"Scraper error: {e}")
+    except (OSError, sqlite3.DatabaseError, ValueError, KeyError) as e:
+        logger.error(f"Scraper error: {e}")
         status = "error"
 
     _record_scrape_run("all", started_at, total, status)
-    print(f"\nTotal new alerts across all sources: {total}")
-    print(f"Duration: {time.time() - started_at:.1f}s")
+    logger.info(f"Total new alerts across all sources: {total}")
+    logger.info(f"Duration: {time.time() - started_at:.1f}s")
     return total

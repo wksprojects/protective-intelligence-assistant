@@ -36,7 +36,9 @@ def test_alert_score_includes_ors_and_tas(client):
     )
     alert_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    baseline = score_alert(conn, alert_id, keyword_id, source_id, frequency_override=1.2, z_score_override=0.1)
+    baseline = score_alert(
+        conn, alert_id, keyword_id, source_id, frequency_override=1.2, z_score_override=0.1
+    )
     extract_and_store_alert_entities(
         conn,
         alert_id,

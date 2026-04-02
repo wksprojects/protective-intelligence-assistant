@@ -61,7 +61,9 @@ def _evaluate_scored_profiles(scored_profiles: list[dict], threshold: float = 45
 
 def run_supply_chain_evaluation(dataset_path=DEFAULT_DATASET_PATH, threshold=45.0):
     fixtures = json.loads(Path(dataset_path).read_text(encoding="utf-8"))
-    scored_profiles = [score_vendor_profile(profile) for profile in fixtures if isinstance(profile, dict)]
+    scored_profiles = [
+        score_vendor_profile(profile) for profile in fixtures if isinstance(profile, dict)
+    ]
     report = _evaluate_scored_profiles(scored_profiles, threshold=threshold)
     report.update(
         {

@@ -97,7 +97,9 @@ def compute_signal_quality(window_days=30, include_demo=False):
                     "precision": _precision(tp, fp),
                 }
             )
-        by_source_window.sort(key=lambda row: (row["classified"], row["precision"] or 0.0), reverse=True)
+        by_source_window.sort(
+            key=lambda row: (row["classified"], row["precision"] or 0.0), reverse=True
+        )
 
         by_category_window = []
         for category, stats in category_counts.items():

@@ -161,7 +161,9 @@ def compute_operational_score(conn, alert_id):
         * 20.0
     ) + (float(row["recency_factor"] or 0.1) * 10.0)
 
-    ors_score = max(0.0, min(100.0, base_score + category_factor + proximity_factor + event_factor + poi_factor))
+    ors_score = max(
+        0.0, min(100.0, base_score + category_factor + proximity_factor + event_factor + poi_factor)
+    )
     ors_score, advisory_level = _apply_state_dept_level_cap(
         row["source_name"], row["title"], ors_score
     )
