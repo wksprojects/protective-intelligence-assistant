@@ -1,7 +1,4 @@
-from evals.supply_chain_eval import (
-    render_supply_chain_eval_markdown,
-    run_supply_chain_evaluation,
-)
+from evals.supply_chain_eval import render_supply_chain_eval_markdown, run_supply_chain_evaluation
 
 
 def test_supply_chain_evaluation_report_shape():

@@ -29,10 +29,7 @@ from analytics.behavioral_assessment import (
 from analytics.location_enrichment import update_alert_proximity
 from analytics.poi_matching import get_active_poi_aliases, match_pois
 from analytics.sitrep import generate_sitrep_for_poi_escalation
-from analytics.tas_assessment import (
-    build_escalation_explanation,
-    compute_poi_assessment,
-)
+from analytics.tas_assessment import build_escalation_explanation, compute_poi_assessment
 from database.init_db import get_connection
 
 # ---------------------------------------------------------------------------
