@@ -106,16 +106,12 @@ def evaluate_loo() -> dict:
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
 
-    predictions = []
-    for i, row in df.iterrows():
-        predictions.append(
-            {
-                "name": row["name"],
-                "expected": row[TARGET],
-                "predicted": y_pred[i],
-                "correct": y_pred[i] == row[TARGET],
-            }
-        )
+    predictions = (
+        df[["name", TARGET]]
+        .rename(columns={TARGET: "expected"})
+        .assign(predicted=y_pred, correct=lambda frame: frame["predicted"].eq(frame["expected"]))
+        .to_dict("records")
+    )
 
     return {
         "n_scenarios": len(df),

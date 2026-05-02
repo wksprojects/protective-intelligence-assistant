@@ -8,18 +8,18 @@ import logging
 import sqlite3
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from analytics.insider_risk import (
     build_subject_assessments,
     score_insider_event,
     upsert_insider_assessments,
 )
 from analytics.risk_scoring import score_to_severity
-from analytics.utils import utcnow
+from analytics.utils import parse_timestamp, utcnow
 from database.init_db import get_connection
 from monitoring.collector_health import CollectorHealthObserver
 from scraper.source_health import mark_source_failure
+
+logger = logging.getLogger(__name__)
 
 FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "insider_scenarios.json"
 SOURCE_NAME = "Insider Telemetry (Fixture UEBA)"
@@ -30,6 +30,35 @@ def _load_fixtures():
     if not FIXTURE_PATH.exists():
         return []
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+
+
+def _refresh_fixture_event_times(events):
+    """Shift static fixture event timestamps so demo ingests remain analytically current."""
+    parsed = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        event_dt = parse_timestamp(event.get("event_ts") or event.get("timestamp"))
+        if event_dt is not None:
+            parsed.append(event_dt)
+
+    if not parsed:
+        return events
+
+    offset = utcnow().replace(microsecond=0) - max(parsed)
+    refreshed = []
+    for event in events:
+        if not isinstance(event, dict):
+            refreshed.append(event)
+            continue
+        event_dt = parse_timestamp(event.get("event_ts") or event.get("timestamp"))
+        if event_dt is None:
+            refreshed.append(event)
+            continue
+        updated = dict(event)
+        updated["event_ts"] = (event_dt + offset).strftime("%Y-%m-%d %H:%M:%S")
+        refreshed.append(updated)
+    return refreshed
 
 
 def _ensure_source(conn, source_name=SOURCE_NAME, source_url="insider://fixtures"):
@@ -147,7 +176,8 @@ def _upsert_alert_entities(conn, alert_id, scored_event):
     subject_handle = str(scored_event.get("subject_handle") or "").strip().lower()
     if subject_handle:
         conn.execute(
-            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            """INSERT OR IGNORE INTO alert_entities
+            (alert_id, entity_type, entity_value, created_at)
             VALUES (?, 'actor_handle', ?, CURRENT_TIMESTAMP)""",
             (alert_id, subject_handle),
         )
@@ -155,12 +185,14 @@ def _upsert_alert_entities(conn, alert_id, scored_event):
     subject_id = str(scored_event.get("subject_id") or "").strip().lower()
     if subject_id:
         conn.execute(
-            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            """INSERT OR IGNORE INTO alert_entities
+            (alert_id, entity_type, entity_value, created_at)
             VALUES (?, 'insider_subject', ?, CURRENT_TIMESTAMP)""",
             (alert_id, subject_id),
         )
         conn.execute(
-            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            """INSERT OR IGNORE INTO alert_entities
+            (alert_id, entity_type, entity_value, created_at)
             VALUES (?, 'user_id', ?, CURRENT_TIMESTAMP)""",
             (alert_id, subject_id),
         )
@@ -168,7 +200,8 @@ def _upsert_alert_entities(conn, alert_id, scored_event):
     device_id = str(scored_event.get("device_id") or "").strip().lower()
     if device_id:
         conn.execute(
-            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            """INSERT OR IGNORE INTO alert_entities
+            (alert_id, entity_type, entity_value, created_at)
             VALUES (?, 'device_id', ?, CURRENT_TIMESTAMP)""",
             (alert_id, device_id),
         )
@@ -183,7 +216,8 @@ def _upsert_alert_entities(conn, alert_id, scored_event):
         ):
             continue
         conn.execute(
-            """INSERT OR IGNORE INTO alert_entities (alert_id, entity_type, entity_value, created_at)
+            """INSERT OR IGNORE INTO alert_entities
+            (alert_id, entity_type, entity_value, created_at)
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
             (alert_id, entity_type, entity_value),
         )
@@ -597,7 +631,7 @@ def collect_insider_telemetry():
 
     try:
         stats = ingest_insider_events(
-            fixtures,
+            _refresh_fixture_event_times(fixtures),
             source_name=SOURCE_NAME,
             source_url="insider://fixtures",
             observer_name="insider_fixture",
