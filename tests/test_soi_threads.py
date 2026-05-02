@@ -7,7 +7,7 @@ using an in-memory SQLite database seeded with the project schema.
 
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -155,11 +155,9 @@ class TestPairLinking:
         threads = build_soi_threads(days=1, window_hours=72, min_cluster_size=2)
 
         # There must be at least one thread containing both alerts
-        thread_ids = set()
         for t in threads:
             ids = {e["alert_id"] for e in t["timeline"]}
             if a1 in ids and a2 in ids:
-                thread_ids = ids
                 assert t["thread_confidence"] > 0
                 break
         else:

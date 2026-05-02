@@ -5,7 +5,6 @@ reason code generation, helper functions, edge cases, and database upsert.
 """
 
 import json
-import math
 import sqlite3
 import sys
 from pathlib import Path

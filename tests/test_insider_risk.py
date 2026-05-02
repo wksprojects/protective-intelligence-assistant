@@ -1,6 +1,5 @@
 """Unit tests for analytics.insider_risk — insider-risk scoring engine."""
 
-import json
 import sys
 from pathlib import Path
 
