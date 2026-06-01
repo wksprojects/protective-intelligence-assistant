@@ -5,9 +5,21 @@
 
 Protective-intelligence decision support via cross-domain correlation across cyber, physical, and human-behavior signals.
 
-Capability classes: Global Security Investigations / Protective Intelligence / Insider Risk / Third-Party Risk.
+Primary analytical domains: protective intelligence, insider-risk fixtures, third-party/supply-chain risk, and cross-domain correlation.
 
 The platform ingests open-source signals, links related activity into investigation threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
+
+## What This Demonstrates
+
+This project translates protective-intelligence tradecraft into a working analyst-assistance workflow. The workflow emphasizes requirements-driven collection, source evaluation, entity extraction, correlation, risk scoring, uncertainty handling, casepack generation, and analyst-ready dissemination.
+
+Review points:
+
+- **Investigation threading:** related alerts are linked into subject-of-interest threads with pair evidence and reason codes.
+- **Behavioral threat assessment:** TRAP-18-informed indicators and pathway-to-violence concepts are adapted for analyst triage.
+- **Operational outputs:** daily reports, travel briefs, SITREPs, and casepacks are generated as decision-support products, not demo filler.
+- **Governance posture:** source-health telemetry, redaction options, audit logging, and environment-gated collectors reflect privacy and operational controls.
+- **Reproducibility:** fixture-driven demos, eval artifacts, and tests make the workflow inspectable without live sensitive data.
 
 ## 90-Second Proof
 
