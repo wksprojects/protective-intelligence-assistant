@@ -1,0 +1,6 @@
+rollup_id,type,label,source_basis,context,confidence,limitations
+ER-001,destination,"London, United Kingdom","U.S. Department of State travel advisory; MI5 threat-level page","Destination context for fictional executive travel review",high,"No itinerary-specific information assessed"
+ER-002,protectee_group,"Fictional executive delegation","scenario placeholder","Demonstrates protectee/workflow structure without identifying a real person",high,"No real identity, route, or schedule"
+ER-003,exposure_context,"public and crowded venues","U.S. Department of State travel advisory","General crowded-place exposure category for planning review",medium,"Public context only; not a specific threat report"
+ER-004,exposure_context,"transportation hubs and hotels","U.S. Department of State travel advisory","Potential itinerary exposure points requiring dwell-time and movement review",medium,"Requires actual itinerary before operational relevance can be assessed"
+ER-005,event_context,"public event planning","Metropolitan Police public-event guidance","Planning context for organizer coordination, stewarding, and emergency procedures",medium,"Applies only if itinerary includes public-facing event attendance"

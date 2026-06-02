@@ -7,7 +7,7 @@ Protective-intelligence decision support via cross-domain correlation across cyb
 
 Primary analytical domains: protective intelligence, insider-risk fixtures, third-party/supply-chain risk, and cross-domain correlation.
 
-The platform ingests open-source signals, links related activity into investigation threads, scores risk with explainable logic, and produces analyst-ready outputs (daily reports, travel briefs, SITREPs).
+The platform ingests open-source signals, links related activity into investigation threads, scores risk with explainable logic, and produces reviewable analyst outputs (queues, casepacks, daily reports, travel briefs, and SITREPs).
 
 ## What This Demonstrates
 
@@ -20,6 +20,14 @@ Review points:
 - **Operational outputs:** daily reports, travel briefs, SITREPs, and casepacks are generated as decision-support products, not demo filler.
 - **Governance posture:** source-health telemetry, redaction options, audit logging, and environment-gated collectors reflect privacy and operational controls.
 - **Reproducibility:** fixture-driven demos, eval artifacts, and tests make the workflow inspectable without live sensitive data.
+
+Reviewable artifacts:
+
+- `outputs/summary.md` - compact index of portfolio review outputs.
+- `outputs/review_queue.csv` - review queue example with confidence and next action.
+- `outputs/entity_or_event_rollup.csv` - entity/event rollup for the public-data companion case.
+- `docs/public_companion_casepack.md` - public-source-only companion casepack using official public sources.
+- `docs/methodology.md` and `docs/limitations.md` - workflow method, assumptions, and public framing.
 
 ## 90-Second Proof
 
@@ -43,10 +51,11 @@ make demo
 - `docs/incident_thread_casepack.md`
 - `docs/demo_daily_report.md`
 - `docs/demo_travel_brief.md`
+- `outputs/summary.md` and companion review artifacts are committed as static examples for portfolio review.
 
 Committed synthetic casepack (detection -> thread -> reason codes/evidence -> disposition -> controls): `docs/sample_casepack.md`
 
-Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluation.md`
+Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluation.md` · `docs/methodology.md` · `docs/limitations.md`
 
 ## Scope Guardrails (PI-First)
 
@@ -63,15 +72,15 @@ Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluati
 - Supply-chain fixture evaluation (n=6, threshold 45.0): **Precision 1.0000 / Recall 0.8000 / F1 0.8889** (`make supplychain-eval`).
 - Supply-chain scaffold coverage: **6 vendor profiles** across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
 - Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
-- Engineering verification: **103 automated tests passing** (`pytest -q`).
+- Engineering verification: **341 automated tests passing** (`pytest -q`, latest local run June 2026).
 
 Note: insider/supply-chain metrics above are fixture benchmark scores, not claims of field production performance.
 
-## What This Project Demonstrates
+## Capability Map
 
 All capabilities below are implemented as one protective-intelligence pipeline, not separate standalone products.
 
-### Capability Map (90-second scan)
+### 90-second scan
 
 | Capability | Evidence in Repo |
 |---|---|
