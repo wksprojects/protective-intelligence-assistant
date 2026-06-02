@@ -9,6 +9,8 @@ Primary analytical domains: protective intelligence, insider-risk fixtures, thir
 
 The platform ingests open-source signals, links related activity into investigation threads, scores risk with explainable logic, and produces reviewable analyst outputs (queues, casepacks, daily reports, travel briefs, and SITREPs).
 
+Portfolio page: https://wksprojects.com/protective-intelligence-assistant/
+
 ## What This Demonstrates
 
 This project translates protective-intelligence tradecraft into a working analyst-assistance workflow. The workflow emphasizes requirements-driven collection, source evaluation, entity extraction, correlation, risk scoring, uncertainty handling, casepack generation, and analyst-ready dissemination.

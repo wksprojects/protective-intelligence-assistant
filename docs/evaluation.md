@@ -26,7 +26,7 @@ Generated artifacts:
 
 - **Correlation:** pairwise linkage scoring against labeled convergence cases.
 - **Insider:** IRS threshold classification on behavioral telemetry scenarios.
-- **Supply chain:** vendor risk threshold classification on scaffolded vendor profiles.
+- **Supply chain:** vendor risk threshold classification on fixture vendor profiles.
 
 ## Review guidance
 

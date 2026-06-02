@@ -10,7 +10,7 @@ This project models investigation workflows with synthetic, de-identified data.
 
 ## Third-party access misuse
 
-- **Trigger:** elevated vendor exposure profile in the supply-chain scaffold.
+- **Trigger:** elevated vendor exposure profile in fixture vendor data.
 - **Core signals:** concentration risk, privilege scope, sensitive data exposure, compliance posture.
 - **Analyst output:** vendor risk tier + factor breakdown + linked entities in investigation threads.
 
