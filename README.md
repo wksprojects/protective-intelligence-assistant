@@ -19,13 +19,17 @@ Review points:
 - **Behavioral threat assessment:** TRAP-18-informed indicators and pathway-to-violence concepts are adapted for analyst triage.
 - **Operational outputs:** daily reports, travel briefs, SITREPs, and casepacks are generated as decision-support products, not demo filler.
 - **Governance posture:** source-health telemetry, redaction options, audit logging, and environment-gated collectors reflect privacy and operational controls.
-- **Reproducibility:** fixture-driven demos, eval artifacts, and tests make the workflow inspectable without live sensitive data.
+- **Reproducibility:** fixture-driven demos, public-data companion outputs, eval artifacts, and tests make the workflow inspectable without live sensitive data.
 
 Reviewable artifacts:
 
 - `outputs/summary.md` - compact index of portfolio review outputs.
 - `outputs/review_queue.csv` - review queue example with confidence and next action.
 - `outputs/entity_or_event_rollup.csv` - entity/event rollup for the public-data companion case.
+- `outputs/public_travel_advisory_source_rows.csv` - 240 official public RSS rows from State Department and CDC feeds.
+- `outputs/public_travel_advisory_review_queue.csv` - 149 critical/high/medium review queue rows derived from official public feeds.
+- `outputs/public_travel_advisory_rollup.csv` - source, level, and priority rollup for briefing.
+- `docs/public_travel_advisory_case_study.md` - real public-data companion case study for travel-risk review.
 - `docs/public_companion_casepack.md` - public-source-only companion casepack using official public sources.
 - `docs/methodology.md` and `docs/limitations.md` - workflow method, assumptions, and public framing.
 
@@ -33,7 +37,8 @@ Reviewable artifacts:
 
 - External threat monitoring (OSINT ingestion).
 - Insider risk analytics (fixture UEBA-style telemetry).
-- Third-party/vendor exposure scoring (env-gated scaffold).
+- Public travel-risk triage from official State Department and CDC RSS feeds.
+- Third-party/vendor exposure scoring with fixture profiles and gated collectors.
 - Cross-domain investigation threading over insider + external + vendor pivots.
 
 Run one command:
@@ -53,6 +58,14 @@ make demo
 - `docs/demo_travel_brief.md`
 - `outputs/summary.md` and companion review artifacts are committed as static examples for portfolio review.
 
+Generate the public-data companion case study:
+
+```bash
+make public-travel-case
+```
+
+This fetches official public RSS rows and writes the travel advisory source table, review queue, rollup, and case-study memo.
+
 Committed synthetic casepack (detection -> thread -> reason codes/evidence -> disposition -> controls): `docs/sample_casepack.md`
 
 Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluation.md` · `docs/methodology.md` · `docs/limitations.md`
@@ -70,7 +83,8 @@ Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluati
 - Correlation linkage quality on hand-labeled scenarios: **Precision 0.8750 / Recall 0.8750 / F1 0.8750** (`make correlation-eval`).
 - Insider-risk fixture evaluation (n=10, threshold 55.0): **Precision 1.0000 / Recall 1.0000 / F1 1.0000** (`make insider-eval`).
 - Supply-chain fixture evaluation (n=6, threshold 45.0): **Precision 1.0000 / Recall 0.8000 / F1 0.8889** (`make supplychain-eval`).
-- Supply-chain scaffold coverage: **6 vendor profiles** across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
+- Public travel advisory companion: **240 official RSS rows** and **149 critical/high/medium review queue items** from State Department and CDC feeds (`make public-travel-case`).
+- Supply-chain fixture coverage: **6 vendor profiles** across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
 - Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
 - Engineering verification: **341 automated tests passing** (`pytest -q`, latest local run June 2026).
 
@@ -159,7 +173,7 @@ flowchart LR
         Insider["Insider telemetry fixture"]
         Physical["Badge/physical access logs (fixture)"]
         Vendor["Supply-chain vendor fixture"]
-        DW["Dark-web scaffold"]
+        DW["Dark-web gated prototype"]
     end
 
     subgraph Ingestion
@@ -299,8 +313,8 @@ Prototype and high-risk collectors are disabled by default.
 
 - `PI_ENABLE_TELEGRAM_COLLECTOR=1` enables Telegram prototype collector.
 - `PI_ENABLE_CHANS_COLLECTOR=1` enables chans prototype collector.
-- `PI_ENABLE_SUPPLY_CHAIN=1` enables supply-chain fixture scaffold collector.
-- `PI_ENABLE_DARKWEB_COLLECTOR=1` enables dark-web scaffold path (still non-operational by design).
+- `PI_ENABLE_SUPPLY_CHAIN=1` enables the supply-chain fixture collector.
+- `PI_ENABLE_DARKWEB_COLLECTOR=1` enables the gated dark-web prototype path (still non-operational by design).
 
 Safety defaults and optics:
 

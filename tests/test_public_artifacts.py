@@ -8,9 +8,13 @@ def test_public_review_artifacts_are_present():
         "outputs/summary.md",
         "outputs/review_queue.csv",
         "outputs/entity_or_event_rollup.csv",
+        "outputs/public_travel_advisory_source_rows.csv",
+        "outputs/public_travel_advisory_review_queue.csv",
+        "outputs/public_travel_advisory_rollup.csv",
         "docs/methodology.md",
         "docs/limitations.md",
         "docs/public_companion_casepack.md",
+        "docs/public_travel_advisory_case_study.md",
     ]
 
     for relative_path in expected:

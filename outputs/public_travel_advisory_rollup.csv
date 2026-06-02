@@ -1,0 +1,10 @@
+source,advisory_level,priority,count
+CDC Travel Health Notices,1,low,11
+CDC Travel Health Notices,2,medium,13
+CDC Travel Health Notices,3,critical,1
+U.S. Department of State Travel Advisories,1,low,80
+U.S. Department of State Travel Advisories,1,medium,3
+U.S. Department of State Travel Advisories,2,high,32
+U.S. Department of State Travel Advisories,2,medium,48
+U.S. Department of State Travel Advisories,3,high,28
+U.S. Department of State Travel Advisories,4,critical,24
