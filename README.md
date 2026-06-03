@@ -3,23 +3,23 @@
 [![CI](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
 
-Protective-intelligence decision support via cross-domain correlation across cyber, physical, and human-behavior signals.
+Protective-intelligence analyst workflow for cross-domain triage across cyber, physical, and human-behavior signals.
 
 Primary analytical domains: protective intelligence, insider-risk fixtures, third-party/supply-chain risk, and cross-domain correlation.
 
-The platform ingests open-source signals, links related activity into investigation threads, scores risk with explainable logic, and produces reviewable analyst outputs (queues, casepacks, daily reports, travel briefs, and SITREPs).
+The repo turns open-source and fixture signals into investigation threads, reason-coded risk scores, and reviewable analyst artifacts: queues, casepacks, daily reports, travel briefs, and SITREPs.
 
 Portfolio page: https://wksprojects.com/protective-intelligence-assistant/
 
 ## What This Demonstrates
 
-This project translates protective-intelligence tradecraft into a working analyst-assistance workflow. The workflow emphasizes requirements-driven collection, source evaluation, entity extraction, correlation, risk scoring, uncertainty handling, casepack generation, and analyst-ready dissemination.
+This project translates protective-intelligence workflow concepts into an inspectable analyst workflow. The emphasis is requirements-driven collection, source evaluation, entity extraction, correlation, risk scoring, uncertainty handling, casepack generation, and analyst-ready dissemination.
 
 Review points:
 
 - **Investigation threading:** related alerts are linked into subject-of-interest threads with pair evidence and reason codes.
 - **Behavioral threat assessment:** TRAP-18-informed indicators and pathway-to-violence concepts are adapted for analyst triage.
-- **Operational outputs:** daily reports, travel briefs, SITREPs, and casepacks are generated as decision-support products, not demo filler.
+- **Operational outputs:** daily reports, travel briefs, SITREPs, and casepacks are generated as analyst artifacts for human review.
 - **Governance posture:** source-health telemetry, redaction options, audit logging, and environment-gated collectors reflect privacy and operational controls.
 - **Reproducibility:** fixture-driven demos, public-data companion outputs, eval artifacts, and tests make the workflow inspectable without live sensitive data.
 
@@ -35,7 +35,7 @@ Reviewable artifacts:
 - `docs/public_companion_casepack.md` - public-source-only companion casepack using official public sources.
 - `docs/methodology.md` and `docs/limitations.md` - workflow method, assumptions, and public framing.
 
-## 90-Second Proof
+## 90-Second Review
 
 - External threat monitoring (OSINT ingestion).
 - Insider risk analytics (fixture UEBA-style telemetry).
@@ -77,8 +77,8 @@ Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluati
 - Primary mission: protective-intelligence analysis for protectees, facilities, and travel risk.
 - Insider and vendor modules are supporting risk vectors that feed the same correlation and prioritization pipeline.
 - Fixture-driven telemetry simulation is used for high-sensitivity domains in this public repo.
-- Env-gated restricted-platform prototypes are opt-in and disabled by default.
-- This repo is not a full UEBA suite, TPRM platform, or SOC replacement.
+- Env-gated restricted-source prototypes are opt-in and disabled by default.
+- This repo is not a full UEBA suite, TPRM replacement, or SOC replacement.
 
 ## Headline Metrics (Latest Local Run - February 27, 2026)
 
@@ -92,9 +92,9 @@ Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluati
 
 Note: insider/supply-chain metrics above are fixture benchmark scores, not claims of field production performance.
 
-## Capability Map
+## Workflow Evidence
 
-All capabilities below are implemented as one protective-intelligence pipeline, not separate standalone products.
+The evidence below is organized as one protective-intelligence workflow, not separate standalone modules.
 
 ### 90-second scan
 
@@ -111,10 +111,10 @@ All capabilities below are implemented as one protective-intelligence pipeline, 
 | Lifecycle Phase | Implementation |
 |---|---|
 | **Requirements & Direction** | Configurable watchlist (`config/watchlist.yaml`) with keyword priorities, POIs, protected locations, and event calendars. Source presets endpoint for tasked collection expansion. |
-| **Collection** | Multi-INT ingestion: OSINT feeds (RSS, Reddit, Pastebin, ACLED), HUMINT-adjacent behavioral telemetry (insider UEBA simulation), supply-chain due-diligence profiles. Environment-gated restricted-platform prototypes. |
+| **Collection** | Multi-INT ingestion: OSINT feeds (RSS, Reddit, Pastebin, ACLED), HUMINT-adjacent behavioral telemetry (insider UEBA simulation), supply-chain due-diligence profiles. Environment-gated restricted-source prototypes. |
 | **Processing & Exploitation** | Entity extraction (POI, IOC, location), deduplication, keyword matching, geocoding enrichment, source credibility weighting via Bayesian priors. |
 | **Analysis & Production** | Multi-factor risk scoring (ORS, TAS, IRS), SOI correlation threading with reason-coded pair evidence, TRAP-18-informed behavioral assessment, Monte Carlo uncertainty quantification. |
-| **Dissemination** | Analyst-ready products: daily intelligence reports, protectee travel briefs, SITREPs, investigation casepacks. SOAR-consumable JSON queues. |
+| **Dissemination** | Analyst-ready artifacts: daily intelligence reports, protectee travel briefs, SITREPs, investigation casepacks. Structured JSON review queues. |
 | **Feedback & Evaluation** | Disposition tracking (TP/FP/escalation), signal-quality precision analytics, hand-labeled eval workflows, source-health telemetry with auto-disable. |
 
 ### Analytical Frameworks
@@ -129,7 +129,7 @@ All capabilities below are implemented as one protective-intelligence pipeline, 
 - **EDR / UEBA:** insider telemetry normalization + IRS reason-coded scoring.
 - **DLP / Exfil:** data movement anomaly factors (`download_gb`, USB, cloud upload).
 - **SIEM / Correlation:** SOI threading over `user_id`, `device_id`, `vendor_id`, `domain`, `ipv4`, `url`.
-- **SOAR-ready outputs:** scored queues from `/analytics/insider-risk`, `/analytics/supply-chain-risk`, `/analytics/soi-threads`.
+- **Structured queue outputs:** scored queues from `/analytics/insider-risk`, `/analytics/supply-chain-risk`, `/analytics/soi-threads`.
 - **Evidence handling:** casepack provenance keys + pairwise linkage evidence + timeline reconstruction.
 - **Analyst workflow:** detect → enrich → correlate → score → triage → disposition → feedback loop.
 
@@ -277,7 +277,7 @@ Output fields include:
 
 ### 4) Signal Taxonomy
 
-The system collects and scores signals as indicator classes, not only keyword hits.
+The workflow collects and scores signals as indicator classes, not only keyword hits.
 
 | Signal Class | Examples |
 |---|---|
@@ -399,7 +399,7 @@ See `docs/incident_thread_casepack.md` for a full threaded investigation export 
 
 ### PII/Protectee Redaction
 
-- Generated intel products can redact active POI names/aliases via `REDACT_PERSON_ENTITIES=1`.
+- Generated intel artifacts can redact active POI names/aliases via `REDACT_PERSON_ENTITIES=1`.
 - Redaction is applied to reports/briefs/SITREPs before output.
 
 ### Retention
@@ -449,4 +449,4 @@ Current suite status: 103 passing tests.
 
 ## Legal and Operational Note
 
-This repository is an analyst-assistance platform. Any operational collection on adversarial or platform-restricted sources must follow organizational legal review, platform terms, and applicable privacy/civil-liberties policies before activation.
+This repository is a public analyst-workflow demonstration. Any operational collection on adversarial or platform-restricted sources must follow organizational legal review, platform terms, and applicable privacy/civil-liberties policies before activation.
