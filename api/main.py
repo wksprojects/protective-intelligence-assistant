@@ -10,6 +10,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,10 +40,61 @@ if not logger.handlers:
 
 APP_START_TIME = time.time()
 MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+DEFAULT_REQUEST_ID_MAX_LEN = 80
+MAX_SOURCE_URL_LEN = 255
+ALLOWED_INGEST_URL_SCHEMES = {
+    "insider": {"insider", "http", "https"},
+    "supply_chain": {"supply-chain", "http", "https"},
+}
 
 
-def _truthy_env(value: str) -> bool:
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+def _truthy_env(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _strip_header_control_chars(value: str) -> str:
+    return "".join(ch for ch in value if ch.isprintable() and ch not in "\r\n")
+
+
+def _safe_header_value(value: Optional[str], default: str = "", max_len: int = 120) -> str:
+    cleaned = _strip_header_control_chars(str(value or "").strip())
+    if not cleaned:
+        return default
+    return cleaned[:max_len]
+
+
+def _safe_detail(value: Optional[str], max_len: int = 240) -> str:
+    cleaned = _strip_header_control_chars(str(value or "").strip())
+    return cleaned[:max_len] if cleaned else "unknown"
+
+
+def _resolve_cors_origins(
+    raw_origins: Optional[str] = None,
+    auth_required: Optional[bool] = None,
+    allow_wildcard: Optional[bool] = None,
+) -> list[str]:
+    """Resolve CORS origins with a stricter default when API-key auth is enabled."""
+    if auth_required is None:
+        auth_required = _AUTH_REQUIRED
+    if allow_wildcard is None:
+        allow_wildcard = _truthy_env(os.getenv("PI_ALLOW_WILDCARD_CORS", "0"))
+
+    if raw_origins is None:
+        raw_origins = os.getenv("PI_CORS_ORIGINS")
+        if raw_origins is None:
+            return [] if auth_required else ["*"]
+
+    origins = [origin.strip() for origin in str(raw_origins).split(",") if origin.strip()]
+    if not origins:
+        return [] if auth_required else ["*"]
+
+    if auth_required and "*" in origins and not allow_wildcard:
+        logger.warning(
+            "Wildcard CORS origin suppressed while API key auth is enabled. "
+            "Set PI_CORS_ORIGINS to explicit origins or PI_ALLOW_WILDCARD_CORS=1."
+        )
+        return [origin for origin in origins if origin != "*"]
+    return origins
 
 
 # Resolve API key once at module load to avoid repeated os.getenv() per request
@@ -151,12 +203,12 @@ def _scrape_collector_response(source_name: str, source_type: str, ingested: int
     payload["status"] = status
     payload["fail_streak"] = int(health.get("fail_streak") or 0)
     if health.get("last_error"):
-        payload["detail"] = str(health["last_error"])
+        payload["detail"] = _safe_detail(health["last_error"])
 
     if status == "error":
         raise HTTPException(
             status_code=503,
-            detail=f"{source_name} collector error: {health.get('last_error') or 'unknown'}",
+            detail=f"{source_name} collector error: {_safe_detail(health.get('last_error'))}",
         )
     return payload
 
@@ -208,8 +260,9 @@ app = FastAPI(
     redoc_url=_redoc_url,
 )
 
-# CORS: allow all origins in dev, restrict in production via env var
-_cors_origins = os.getenv("PI_CORS_ORIGINS", "*").split(",")
+# CORS: wildcard is retained for local unauthenticated development, but production-like
+# API-key mode requires explicit origins unless the operator opts into wildcard CORS.
+_cors_origins = _resolve_cors_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -241,9 +294,12 @@ def _audit_mutation(
                 request.url.path,
                 int(response_status),
                 round(float(duration_ms), 3),
-                request.headers.get("X-Analyst", "unknown"),
-                request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-                or (request.client.host if request.client else None),
+                _safe_header_value(request.headers.get("X-Analyst"), "unknown", 80),
+                _safe_header_value(
+                    request.headers.get("X-Forwarded-For", "").split(",")[0],
+                    request.client.host if request.client else "",
+                    80,
+                ),
             ),
         )
         conn.commit()
@@ -256,7 +312,11 @@ def _audit_mutation(
 
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request_id = _safe_header_value(
+        request.headers.get("X-Request-ID"),
+        default=str(uuid.uuid4()),
+        max_len=DEFAULT_REQUEST_ID_MAX_LEN,
+    )
     request.state.request_id = request_id
     start = time.perf_counter()
     try:
@@ -289,57 +349,57 @@ async def request_context_middleware(request: Request, call_next):
 
 
 class KeywordCreate(BaseModel):
-    term: str
-    category: str = "general"
-    weight: float = 1.0
+    term: str = Field(min_length=1, max_length=120)
+    category: str = Field(default="general", min_length=1, max_length=60)
+    weight: float = Field(default=1.0, ge=0.1, le=5.0)
 
 
 class ClassifyRequest(BaseModel):
-    classification: str  # "true_positive" or "false_positive"
+    classification: str = Field(min_length=1, max_length=32)  # true_positive/false_positive
 
 
 class POICreate(BaseModel):
-    name: str
-    org: Optional[str] = None
-    role: Optional[str] = None
-    sensitivity: int = 3
-    aliases: list[str] = []
+    name: str = Field(min_length=1, max_length=120)
+    org: Optional[str] = Field(default=None, max_length=120)
+    role: Optional[str] = Field(default=None, max_length=120)
+    sensitivity: int = Field(default=3, ge=1, le=5)
+    aliases: list[str] = Field(default_factory=list, max_length=25)
 
 
 class ProtectedLocationCreate(BaseModel):
-    name: str
-    type: Optional[str] = None
+    name: str = Field(min_length=1, max_length=120)
+    type: Optional[str] = Field(default=None, max_length=40)
     lat: Optional[float] = None
     lon: Optional[float] = None
-    radius_miles: float = 5.0
-    notes: Optional[str] = None
+    radius_miles: float = Field(default=5.0, gt=0.0, le=100.0)
+    notes: Optional[str] = Field(default=None, max_length=500)
 
 
 class TravelBriefRequest(BaseModel):
-    destination: str
-    start_dt: str
-    end_dt: str
+    destination: str = Field(min_length=1, max_length=180)
+    start_dt: str = Field(min_length=10, max_length=10)
+    end_dt: str = Field(min_length=10, max_length=10)
     poi_id: Optional[int] = None
     protected_location_id: Optional[int] = None
-    include_demo: int = 0
+    include_demo: int = Field(default=0, ge=0, le=1)
 
 
 class DispositionRequest(BaseModel):
-    status: str
-    rationale: Optional[str] = None
-    user: Optional[str] = "analyst"
+    status: str = Field(min_length=1, max_length=32)
+    rationale: Optional[str] = Field(default=None, max_length=2000)
+    user: Optional[str] = Field(default="analyst", max_length=80)
 
 
 class InsiderIngestRequest(BaseModel):
     events: list[dict] = Field(min_length=1, max_length=500)
     source_name: Optional[str] = Field(default=None, max_length=120)
-    source_url: Optional[str] = Field(default=None, max_length=255)
+    source_url: Optional[str] = Field(default=None, max_length=MAX_SOURCE_URL_LEN)
 
 
 class SupplyChainIngestRequest(BaseModel):
     profiles: list[dict] = Field(min_length=1, max_length=500)
     source_name: Optional[str] = Field(default=None, max_length=120)
-    source_url: Optional[str] = Field(default=None, max_length=255)
+    source_url: Optional[str] = Field(default=None, max_length=MAX_SOURCE_URL_LEN)
 
 
 class AlertResponse(BaseModel):
@@ -366,6 +426,45 @@ def _bounded_text(value: Optional[str], field_name: str, max_len: int, required:
         raise HTTPException(status_code=422, detail=f"{field_name} is required")
     if len(cleaned) > max_len:
         raise HTTPException(status_code=422, detail=f"{field_name} exceeds max length ({max_len})")
+    return cleaned
+
+
+def _validate_ingest_source_url(
+    value: Optional[str],
+    default: str,
+    collector_type: str,
+) -> str:
+    raw_value = value or default
+    cleaned = _bounded_text(raw_value, "source_url", MAX_SOURCE_URL_LEN, required=True)
+    if any(ch.isspace() for ch in cleaned):
+        raise HTTPException(status_code=422, detail="source_url cannot contain whitespace")
+
+    scheme = urlsplit(cleaned).scheme.lower()
+    allowed_schemes = ALLOWED_INGEST_URL_SCHEMES[collector_type]
+    if scheme not in allowed_schemes:
+        allowed = ", ".join(sorted(allowed_schemes))
+        raise HTTPException(status_code=422, detail=f"source_url scheme must be one of: {allowed}")
+    return cleaned
+
+
+def _validated_positive_ids(values: list[int], field_name: str, max_count: int) -> list[int]:
+    if len(values) > max_count:
+        raise HTTPException(status_code=422, detail=f"{field_name} exceeds max count ({max_count})")
+    cleaned = []
+    seen = set()
+    for value in values:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=422, detail=f"{field_name} must contain integers"
+            ) from e
+        if parsed <= 0:
+            raise HTTPException(status_code=422, detail=f"{field_name} must contain positive IDs")
+        if parsed in seen:
+            continue
+        seen.add(parsed)
+        cleaned.append(parsed)
     return cleaned
 
 
@@ -444,13 +543,13 @@ def metrics():
 
 @app.get("/alerts", dependencies=[Depends(verify_api_key)])
 def get_alerts(
-    severity: Optional[str] = None,
-    reviewed: Optional[int] = None,
-    min_score: Optional[float] = None,
+    severity: Optional[str] = Query(default=None, pattern="^(critical|high|medium|low)$"),
+    reviewed: Optional[int] = Query(default=None, ge=0, le=1),
+    min_score: Optional[float] = Query(default=None, ge=0.0, le=100.0),
     include_demo: int = Query(default=0, ge=0, le=1),
     sort_by: str = Query(default="risk_score", pattern="^(risk_score|created_at|published_at)$"),
-    limit: int = Query(default=50, le=500),
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0, le=100000),
 ):
     _SORT_COLUMNS = {
         "risk_score": "a.risk_score",
@@ -603,7 +702,8 @@ def classify_alert(alert_id: int, body: ClassifyRequest):
     """
     from analytics.risk_scoring import update_source_credibility_bayesian
 
-    if body.classification not in ("true_positive", "false_positive"):
+    classification = _bounded_text(body.classification, "classification", 32, required=True).lower()
+    if classification not in ("true_positive", "false_positive"):
         raise HTTPException(
             status_code=400,
             detail="classification must be 'true_positive' or 'false_positive'",
@@ -619,7 +719,7 @@ def classify_alert(alert_id: int, body: ClassifyRequest):
     conn.execute("UPDATE alerts SET reviewed = 1 WHERE id = ?", (alert_id,))
 
     # Update Bayesian credibility
-    is_tp = body.classification == "true_positive"
+    is_tp = classification == "true_positive"
     update_source_credibility_bayesian(conn, alert["source_id"], is_tp)
 
     conn.commit()
@@ -634,7 +734,7 @@ def classify_alert(alert_id: int, body: ClassifyRequest):
     return {
         "status": "classified",
         "alert_id": alert_id,
-        "classification": body.classification,
+        "classification": classification,
         "source_name": source["name"],
         "updated_credibility": source["credibility_score"],
         "bayesian_alpha": source["bayesian_alpha"],
@@ -773,7 +873,7 @@ def get_daily_report(date: Optional[str] = None, include_demo: int = Query(defau
 
 
 @app.get("/intelligence/reports", dependencies=[Depends(verify_api_key)])
-def list_reports(limit: int = Query(default=7, le=30)):
+def list_reports(limit: int = Query(default=7, ge=1, le=30)):
     """List recent intelligence reports."""
     conn = get_connection()
     reports = conn.execute(
@@ -837,7 +937,7 @@ def get_spikes(
 
 
 @app.get("/analytics/keyword-trend/{keyword_id}", dependencies=[Depends(verify_api_key)])
-def get_keyword_trend_endpoint(keyword_id: int, days: int = Query(default=14, le=60)):
+def get_keyword_trend_endpoint(keyword_id: int, days: int = Query(default=14, ge=1, le=60)):
     """Get daily frequency trend for a specific keyword."""
     from analytics.spike_detection import get_keyword_trend
 
@@ -875,7 +975,7 @@ def get_evaluation_metrics(source_id: Optional[int] = None):
 
 
 @app.get("/analytics/performance", dependencies=[Depends(verify_api_key)])
-def get_performance_metrics(limit: int = Query(default=20, le=100)):
+def get_performance_metrics(limit: int = Query(default=20, ge=1, le=100)):
     """Get recent scraping performance benchmarks."""
     conn = get_connection()
     runs = conn.execute(
@@ -1312,7 +1412,7 @@ def create_protected_location(body: ProtectedLocationCreate):
 @app.get("/analytics/map", dependencies=[Depends(verify_api_key)])
 def get_map_points(
     days: int = Query(default=7, ge=1, le=30),
-    min_ors: float = Query(default=60.0),
+    min_ors: float = Query(default=60.0, ge=0.0, le=100.0),
     include_demo: int = Query(default=0, ge=0, le=1),
 ):
     conn = get_connection()
@@ -1522,29 +1622,29 @@ def get_threat_actors():
 
 
 class ThreatSubjectCreate(BaseModel):
-    name: str
-    aliases: list[str] = []
+    name: str = Field(min_length=1, max_length=120)
+    aliases: list[str] = Field(default_factory=list, max_length=30)
     linked_poi_id: Optional[int] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
 
 
 class ThreatSubjectAssessmentCreate(BaseModel):
-    grievance_level: float = 0.0
-    fixation_level: float = 0.0
-    identification_level: float = 0.0
-    novel_aggression: float = 0.0
-    energy_burst: float = 0.0
-    leakage: float = 0.0
-    last_resort: float = 0.0
-    directly_communicated_threat: float = 0.0
-    evidence_summary: Optional[str] = None
-    source_alert_ids: list[int] = []
-    analyst_notes: Optional[str] = None
+    grievance_level: float = Field(default=0.0, ge=0.0, le=1.0)
+    fixation_level: float = Field(default=0.0, ge=0.0, le=1.0)
+    identification_level: float = Field(default=0.0, ge=0.0, le=1.0)
+    novel_aggression: float = Field(default=0.0, ge=0.0, le=1.0)
+    energy_burst: float = Field(default=0.0, ge=0.0, le=1.0)
+    leakage: float = Field(default=0.0, ge=0.0, le=1.0)
+    last_resort: float = Field(default=0.0, ge=0.0, le=1.0)
+    directly_communicated_threat: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_summary: Optional[str] = Field(default=None, max_length=2000)
+    source_alert_ids: list[int] = Field(default_factory=list, max_length=100)
+    analyst_notes: Optional[str] = Field(default=None, max_length=2000)
 
 
 @app.get("/threat-subjects", dependencies=[Depends(verify_api_key)])
 def get_threat_subjects(
-    status: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None, max_length=32),
     min_score: float = Query(default=0.0, ge=0.0, le=100.0),
 ):
     """List all threat subjects with their latest pathway score."""
@@ -1661,9 +1761,9 @@ def assess_threat_subject(subject_id: int, body: ThreatSubjectAssessmentCreate):
         conn,
         subject_id,
         indicators,
-        evidence_summary=body.evidence_summary,
-        source_alert_ids=body.source_alert_ids,
-        analyst_notes=body.analyst_notes,
+        evidence_summary=_bounded_text(body.evidence_summary, "evidence_summary", 2000),
+        source_alert_ids=_validated_positive_ids(body.source_alert_ids, "source_alert_ids", 100),
+        analyst_notes=_bounded_text(body.analyst_notes, "analyst_notes", 2000),
     )
     conn.commit()
     conn.close()
@@ -1697,7 +1797,7 @@ def get_threat_subject_history(
 
 @app.get("/sitreps", dependencies=[Depends(verify_api_key)])
 def get_sitreps(
-    status: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None, max_length=32),
     limit: int = Query(default=20, ge=1, le=100),
 ):
     """List recent SITREPs."""
@@ -1864,8 +1964,12 @@ def ingest_insider_events_endpoint(request: InsiderIngestRequest):
 
     stats = ingest_insider_events(
         request.events,
-        source_name=request.source_name or INGEST_SOURCE_NAME,
-        source_url=request.source_url or "insider://ingest-api",
+        source_name=_bounded_text(request.source_name or INGEST_SOURCE_NAME, "source_name", 120),
+        source_url=_validate_ingest_source_url(
+            request.source_url,
+            default="insider://ingest-api",
+            collector_type="insider",
+        ),
         observer_name="insider_ingest_api",
     )
     return {"source": "insider_ingest_api", **stats}
@@ -1878,8 +1982,12 @@ def ingest_supply_chain_profiles_endpoint(request: SupplyChainIngestRequest):
 
     stats = ingest_supply_chain_profiles(
         request.profiles,
-        source_name=request.source_name or INGEST_SOURCE_NAME,
-        source_url=request.source_url or "supply-chain://ingest-api",
+        source_name=_bounded_text(request.source_name or INGEST_SOURCE_NAME, "source_name", 120),
+        source_url=_validate_ingest_source_url(
+            request.source_url,
+            default="supply-chain://ingest-api",
+            collector_type="supply_chain",
+        ),
         observer_name="supply_chain_ingest_api",
     )
     return {"source": "supply_chain_ingest_api", **stats}

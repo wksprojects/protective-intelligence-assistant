@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from api.main import _resolve_cors_origins, _safe_detail, _safe_header_value
 from database.init_db import get_connection
 
 
@@ -56,6 +57,32 @@ def test_health_and_ready_endpoints(client):
     assert ready.json()["status"] == "ready"
 
 
+def test_request_id_header_is_bounded(client):
+    response = client.get("/healthz", headers={"X-Request-ID": "a" * 200})
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "a" * 80
+
+
+def test_header_and_detail_helpers_strip_control_characters():
+    assert _safe_header_value(" analyst\r\nother ", max_len=20) == "analystother"
+    assert (
+        _safe_detail("collector\nfailed\rwith detail", max_len=30) == "collectorfailedwith detail"
+    )
+
+
+def test_cors_defaults_are_stricter_when_auth_is_required(monkeypatch):
+    monkeypatch.delenv("PI_CORS_ORIGINS", raising=False)
+    assert _resolve_cors_origins(auth_required=False, allow_wildcard=False) == ["*"]
+    assert _resolve_cors_origins(auth_required=True, allow_wildcard=False) == []
+    assert _resolve_cors_origins("*, https://ops.example", True, False) == ["https://ops.example"]
+    assert _resolve_cors_origins("*", True, True) == ["*"]
+
+
+def test_alerts_endpoint_rejects_negative_pagination(client):
+    response = client.get("/alerts", params={"offset": -1})
+    assert response.status_code == 422
+
+
 def test_metrics_endpoint_shape(client):
     response = client.get("/metrics")
     assert response.status_code == 200
@@ -107,6 +134,25 @@ def test_travel_brief_rejects_reversed_dates(client):
     )
     assert response.status_code == 422
     assert response.json()["detail"] == "end_dt must be on or after start_dt"
+
+
+def test_threat_subject_assessment_rejects_nonpositive_alert_ids(client):
+    subject_response = client.post(
+        "/threat-subjects",
+        json={"name": "Assessment Boundary Subject"},
+    )
+    assert subject_response.status_code == 200
+    subject_id = subject_response.json()["id"]
+
+    assessment = client.post(
+        f"/threat-subjects/{subject_id}/assess",
+        json={
+            "grievance_level": 0.2,
+            "source_alert_ids": [0],
+        },
+    )
+    assert assessment.status_code == 422
+    assert assessment.json()["detail"] == "source_alert_ids must contain positive IDs"
 
 
 def test_daily_report_uses_requested_date_for_spike_detection(client):
