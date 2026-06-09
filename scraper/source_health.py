@@ -27,7 +27,9 @@ def _auto_disable_enabled():
 def _safe_error(error_message, max_len=400):
     if error_message is None:
         return None
-    value = str(error_message).strip()
+    value = "".join(
+        ch for ch in str(error_message).strip() if ch.isprintable() and ch not in "\r\n"
+    )
     if not value:
         return None
     return value[:max_len]

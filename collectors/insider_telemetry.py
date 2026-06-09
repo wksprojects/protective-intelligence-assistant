@@ -24,6 +24,40 @@ logger = logging.getLogger(__name__)
 FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "insider_scenarios.json"
 SOURCE_NAME = "Insider Telemetry (Fixture UEBA)"
 INGEST_SOURCE_NAME = "Insider Telemetry (Ingest API)"
+MAX_RELATED_ENTITIES = 25
+
+
+def _safe_text(value, max_len=120, lower=False):
+    text = "".join(ch for ch in str(value or "").strip() if ch.isprintable() and ch not in "\r\n")
+    if lower:
+        text = text.lower()
+    return text[:max_len]
+
+
+def _safe_identifier(value, max_len=120, lower=False):
+    text = "".join(ch for ch in str(value or "").strip() if ch.isprintable() and ch not in "\r\n")
+    if lower:
+        text = text.lower()
+    if len(text) <= max_len:
+        return text
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+    return f"{text[: max_len - 13]}-{digest}"
+
+
+def _normalize_related_entities(raw_entities):
+    if not isinstance(raw_entities, list):
+        return []
+
+    entities = []
+    for entity in raw_entities[:MAX_RELATED_ENTITIES]:
+        if not isinstance(entity, dict):
+            continue
+        entity_type = _safe_text(entity.get("entity_type"), 40, lower=True)
+        entity_value = _safe_identifier(entity.get("entity_value"), 255, lower=True)
+        if not entity_type or not entity_value:
+            continue
+        entities.append({"entity_type": entity_type, "entity_value": entity_value})
+    return entities
 
 
 def _load_fixtures():
@@ -62,16 +96,18 @@ def _refresh_fixture_event_times(events):
 
 
 def _ensure_source(conn, source_name=SOURCE_NAME, source_url="insider://fixtures"):
+    safe_source_name = _safe_text(source_name, 120) or SOURCE_NAME
+    safe_source_url = _safe_text(source_url, 255) or "insider://fixtures"
     row = conn.execute(
         "SELECT id FROM sources WHERE source_type = 'insider' AND name = ?",
-        (str(source_name),),
+        (safe_source_name,),
     ).fetchone()
     if row:
         return int(row["id"])
     conn.execute(
         """INSERT INTO sources (name, url, source_type, credibility_score, active)
         VALUES (?, ?, ?, ?, 1)""",
-        (str(source_name), str(source_url), "insider", 0.75),
+        (safe_source_name, safe_source_url, "insider", 0.75),
     )
     return int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
 
@@ -292,17 +328,19 @@ def _normalize_event(raw_event, idx):
     if not isinstance(raw_event, dict):
         return None
 
-    subject_id = str(raw_event.get("subject_id") or raw_event.get("user_id") or "").strip()
+    subject_id = _safe_identifier(raw_event.get("subject_id") or raw_event.get("user_id"), 120)
     if not subject_id:
         return None
 
-    subject_name = str(
-        raw_event.get("subject_name") or raw_event.get("user_name") or subject_id
-    ).strip()
-    event_ts = str(
-        raw_event.get("event_ts") or raw_event.get("timestamp") or ""
-    ).strip() or utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    scenario_id = str(raw_event.get("scenario_id") or raw_event.get("event_id") or "").strip()
+    subject_name = _safe_text(
+        raw_event.get("subject_name") or raw_event.get("user_name") or subject_id,
+        120,
+    )
+    event_ts = _safe_text(
+        raw_event.get("event_ts") or raw_event.get("timestamp") or "",
+        40,
+    ) or utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    scenario_id = _safe_identifier(raw_event.get("scenario_id") or raw_event.get("event_id"), 120)
     if not scenario_id:
         digest = hashlib.sha256(
             f"{subject_id}|{event_ts}|{raw_event.get('title') or ''}|{idx}".encode("utf-8")
@@ -556,11 +594,16 @@ def _normalize_event(raw_event, idx):
     normalized["subject_name"] = subject_name
     normalized["event_ts"] = event_ts
     normalized["scenario_id"] = scenario_id
-    normalized["device_id"] = str(
-        raw_event.get("device_id") or raw_event.get("host_id") or ""
-    ).strip()
-    related_entities = raw_event.get("related_entities")
-    normalized["related_entities"] = related_entities if isinstance(related_entities, list) else []
+    normalized["subject_handle"] = _safe_identifier(
+        raw_event.get("subject_handle"), 120, lower=True
+    )
+    normalized["title"] = _safe_text(raw_event.get("title"), 240)
+    normalized["summary"] = _safe_text(raw_event.get("summary"), 1000)
+    normalized["expected_label"] = _safe_text(raw_event.get("expected_label"), 40, lower=True)
+    normalized["device_id"] = _safe_identifier(
+        raw_event.get("device_id") or raw_event.get("host_id"), 120
+    )
+    normalized["related_entities"] = _normalize_related_entities(raw_event.get("related_entities"))
     return normalized
 
 

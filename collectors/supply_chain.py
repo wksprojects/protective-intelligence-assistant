@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -20,6 +21,32 @@ from scraper.source_health import mark_source_failure, mark_source_skipped
 FIXTURE_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "supply_chain_scenarios.json"
 SOURCE_NAME = "Supply Chain Risk (Fixture Scaffold)"
 INGEST_SOURCE_NAME = "Supply Chain Risk (Ingest API)"
+
+
+def _safe_text(value, max_len=120, lower=False, upper=False):
+    text = "".join(ch for ch in str(value or "").strip() if ch.isprintable() and ch not in "\r\n")
+    if lower:
+        text = text.lower()
+    if upper:
+        text = text.upper()
+    return text[:max_len]
+
+
+def _safe_identifier(value, max_len=120, lower=False):
+    text = "".join(ch for ch in str(value or "").strip() if ch.isprintable() and ch not in "\r\n")
+    if lower:
+        text = text.lower()
+    if len(text) <= max_len:
+        return text
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+    return f"{text[: max_len - 13]}-{digest}"
+
+
+def _country_code(raw_profile):
+    value = _safe_text(
+        raw_profile.get("country_code") or raw_profile.get("country"), 12, upper=True
+    )
+    return value if len(value) == 2 and value.isalpha() else ""
 
 
 def _enabled():
@@ -102,16 +129,18 @@ def _as_bool(value):
 
 
 def _ensure_source(conn, source_name=SOURCE_NAME, source_url="supply-chain://fixtures"):
+    safe_source_name = _safe_text(source_name, 120) or SOURCE_NAME
+    safe_source_url = _safe_text(source_url, 255) or "supply-chain://fixtures"
     row = conn.execute(
         "SELECT id FROM sources WHERE source_type = 'supply_chain' AND name = ?",
-        (str(source_name),),
+        (safe_source_name,),
     ).fetchone()
     if row:
         return int(row["id"])
     conn.execute(
         """INSERT INTO sources (name, url, source_type, credibility_score, active)
         VALUES (?, ?, ?, ?, 1)""",
-        (str(source_name), str(source_url), "supply_chain", 0.6),
+        (safe_source_name, safe_source_url, "supply_chain", 0.6),
     )
     return int(conn.execute("SELECT last_insert_rowid()").fetchone()[0])
 
@@ -252,29 +281,26 @@ def _normalize_profile(raw_profile, idx):
     if not isinstance(factors, dict):
         factors = {}
 
-    vendor_name = str(raw_profile.get("vendor_name") or raw_profile.get("name") or "").strip()
+    vendor_name = _safe_text(raw_profile.get("vendor_name") or raw_profile.get("name"), 120)
     if not vendor_name:
         return None
 
-    vendor_domain = (
-        str(raw_profile.get("vendor_domain") or raw_profile.get("domain") or "").strip().lower()
-    )
-    profile_id = str(
+    vendor_domain = _safe_text(raw_profile.get("vendor_domain") or raw_profile.get("domain"), 255)
+    profile_id = _safe_identifier(
         raw_profile.get("profile_id")
         or raw_profile.get("vendor_id")
         or raw_profile.get("external_id")
-        or ""
-    ).strip()
+        or "",
+        120,
+    )
     if not profile_id:
         profile_id = f"ing-vendor-{idx}-{vendor_name.lower().replace(' ', '-')[:24]}"
 
     normalized = dict(raw_profile)
     normalized["vendor_name"] = vendor_name
-    normalized["vendor_domain"] = vendor_domain
+    normalized["vendor_domain"] = vendor_domain.lower()
     normalized["profile_id"] = profile_id
-    normalized["country"] = (
-        str(raw_profile.get("country") or raw_profile.get("country_code") or "").strip().upper()
-    )
+    normalized["country"] = _country_code(raw_profile)
     normalized["single_point_of_failure"] = _as_bool(
         _coalesce(
             raw_profile.get("single_point_of_failure"),
@@ -335,7 +361,7 @@ def _normalize_profile(raw_profile, idx):
         factors.get("recent_incidents"),
         0,
     )
-    normalized["expected_label"] = str(raw_profile.get("expected_label") or "").strip().lower()
+    normalized["expected_label"] = _safe_text(raw_profile.get("expected_label"), 40, lower=True)
     normalized["ingested_at"] = utcnow().strftime("%Y-%m-%d %H:%M:%S")
     return normalized
 

@@ -418,3 +418,80 @@ def test_ingest_endpoints_reject_oversized_payload_lists(client):
         json={"profiles": oversized_profiles},
     )
     assert supply_response.status_code == 422
+
+
+def test_ingest_endpoints_reject_unexpected_source_url_schemes(client):
+    insider_response = client.post(
+        "/ingest/insider-events",
+        json={
+            "source_url": "file:///tmp/insider.json",
+            "events": [{"subject_id": "EMP-URL-1"}],
+        },
+    )
+    assert insider_response.status_code == 422
+    assert "source_url scheme" in insider_response.json()["detail"]
+
+    supply_response = client.post(
+        "/ingest/supply-chain-profiles",
+        json={
+            "source_url": "ftp://feeds.example/vendors.json",
+            "profiles": [{"name": "Vendor URL Boundary"}],
+        },
+    )
+    assert supply_response.status_code == 422
+    assert "source_url scheme" in supply_response.json()["detail"]
+
+
+def test_ingest_endpoints_reject_source_url_whitespace(client):
+    response = client.post(
+        "/ingest/insider-events",
+        json={
+            "source_url": "https://feeds.example/insider events.json",
+            "events": [{"subject_id": "EMP-URL-2"}],
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "source_url cannot contain whitespace"
+
+
+def test_insider_normalizer_bounds_entity_fanout_and_text():
+    from collectors.insider_telemetry import MAX_RELATED_ENTITIES, _normalize_event
+
+    event = _normalize_event(
+        {
+            "subject_id": "EMP-" + ("9" * 200),
+            "subject_name": "Analyst\nName",
+            "summary": "x" * 2000,
+            "related_entities": [
+                {"entity_type": "domain", "entity_value": f"example{idx}.com"}
+                for idx in range(MAX_RELATED_ENTITIES + 5)
+            ],
+        },
+        0,
+    )
+
+    assert event is not None
+    assert len(event["subject_id"]) == 120
+    assert "\n" not in event["subject_name"]
+    assert len(event["summary"]) == 1000
+    assert len(event["related_entities"]) == MAX_RELATED_ENTITIES
+
+
+def test_supply_chain_normalizer_bounds_identifiers():
+    from collectors.supply_chain import _normalize_profile
+
+    profile = _normalize_profile(
+        {
+            "external_id": "VEN-" + ("1" * 200),
+            "name": "Vendor\r\nName",
+            "domain": ("very-long-" * 40) + "example.com",
+            "country": "United States",
+        },
+        0,
+    )
+
+    assert profile is not None
+    assert len(profile["profile_id"]) == 120
+    assert profile["vendor_name"] == "VendorName"
+    assert len(profile["vendor_domain"]) == 255
+    assert profile["country"] == ""

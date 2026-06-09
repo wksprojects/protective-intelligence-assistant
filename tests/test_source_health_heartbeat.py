@@ -102,3 +102,16 @@ def test_source_health_heartbeat_artifact_writer(client, tmp_path):
     assert jsonl_path.exists()
     assert "Source Health Heartbeat" in md_path.read_text(encoding="utf-8")
     assert len(jsonl_path.read_text(encoding="utf-8").strip().splitlines()) == 1
+
+
+def test_source_health_error_text_strips_control_characters(client):
+    from scraper.source_health import mark_source_failure
+
+    conn = get_connection()
+    source_id = conn.execute("SELECT id FROM sources ORDER BY id LIMIT 1").fetchone()["id"]
+    mark_source_failure(conn, source_id, "collector\nfailed\rwith detail")
+    conn.commit()
+    row = conn.execute("SELECT last_error FROM sources WHERE id = ?", (source_id,)).fetchone()
+    conn.close()
+
+    assert row["last_error"] == "collectorfailedwith detail"
