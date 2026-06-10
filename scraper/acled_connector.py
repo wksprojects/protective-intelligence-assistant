@@ -68,6 +68,9 @@ def run_acled_collector(frequency_snapshot=None):
         if preferred_keyword is None and keywords:
             preferred_keyword = keywords[0]
         if preferred_keyword is None:
+            # Persist the first-run source registration; without this commit the
+            # INSERT above is rolled back when conn.close() runs in finally.
+            conn.commit()
             logger.info("ACLED collector skipped (no active keywords).")
             return 0
 
