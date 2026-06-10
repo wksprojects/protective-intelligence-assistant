@@ -110,8 +110,12 @@ def purge_demo_content():
 
 
 def main():
+    # Configure CLI logging so command output (collector progress, purge stats,
+    # demo artifact paths) is visible when running `python run.py ...` directly.
+    logging.basicConfig(level=os.getenv("PI_LOG_LEVEL", "INFO").upper())
+
     if len(sys.argv) < 2:
-        logger.info(__doc__)
+        print(__doc__)
         return
 
     command = sys.argv[1].lower()
@@ -239,7 +243,7 @@ def main():
 
     else:
         logger.warning(f"Unknown command: {command}")
-        logger.info(__doc__)
+        print(__doc__)
 
 
 if __name__ == "__main__":
