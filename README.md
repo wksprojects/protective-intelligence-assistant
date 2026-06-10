@@ -88,7 +88,7 @@ Supporting docs: `docs/use_cases.md` · `docs/architecture.md` · `docs/evaluati
 - Public travel advisory companion: **240 official RSS rows** and **149 critical/high/medium review queue items** from State Department and CDC feeds (`make public-travel-case`).
 - Supply-chain fixture coverage: **6 vendor profiles** across low/guarded/elevated/high tiers (`fixtures/supply_chain_scenarios.json`).
 - Collector reliability posture: **heartbeat snapshot + append-only health log** for rapid detection of silent feed failures (`make heartbeat`).
-- Engineering verification: **341 automated tests passing** (`pytest -q`, latest local run June 2026).
+- Engineering verification: **352 automated tests passing** (`pytest -q`, latest local run June 2026).
 
 Note: insider/supply-chain metrics above are fixture benchmark scores, not claims of field production performance.
 
@@ -441,11 +441,14 @@ Incremental modularization is now in place:
 
 ## Testing
 
+Test tooling (`pytest`, `httpx`) lives in the dev requirements:
+
 ```bash
+pip install -r requirements-dev.txt
 python -m pytest tests/ -v
 ```
 
-Current suite status: 103 passing tests.
+Current suite status: 352 passing tests.
 
 ## Legal and Operational Note
 
