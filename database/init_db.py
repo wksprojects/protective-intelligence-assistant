@@ -601,6 +601,7 @@ def migrate_schema():
         "CREATE INDEX IF NOT EXISTS idx_alerts_duplicate_of ON alerts(duplicate_of)",
         "CREATE INDEX IF NOT EXISTS idx_alerts_created_date ON alerts(created_at)",
         "CREATE INDEX IF NOT EXISTS idx_alerts_published_date ON alerts(published_at)",
+        "CREATE INDEX IF NOT EXISTS idx_alerts_src_kw_url ON alerts(source_id, keyword_id, url)",
         "CREATE INDEX IF NOT EXISTS idx_keyword_frequency_kw_date ON keyword_frequency(keyword_id, date)",
         "CREATE INDEX IF NOT EXISTS idx_alert_entities_alert ON alert_entities(alert_id)",
         "CREATE INDEX IF NOT EXISTS idx_alert_entities_type_value ON alert_entities(entity_type, entity_value)",
