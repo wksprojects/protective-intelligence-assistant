@@ -1,6 +1,6 @@
 # Protective Intelligence Assistant
 
-[![CI](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/regimeiq/protective-intelligence-assistant/actions/workflows/ci.yml)
+[![CI](https://github.com/wksprojects/protective-intelligence-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/wksprojects/protective-intelligence-assistant/actions/workflows/ci.yml)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
 
 Protective-intelligence analyst workflow for cross-domain triage across cyber, physical, and human-behavior signals.
